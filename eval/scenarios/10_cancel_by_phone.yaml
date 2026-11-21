@@ -1,0 +1,31 @@
+id: cancel_by_phone
+category: cancel
+goal: Cancel tomorrow's haircut.
+persona: Something came up at work.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup:
+  existing:
+  - service: Haircut
+    staff: Sara
+    date: '2025-11-25'
+    time: '15:00'
+    name: Ayesha Khan
+    phone: '+923001112233'
+    email: ayesha.k@example.com
+settings: {}
+expected_tools:
+- cancel_appointment
+expected:
+  appointments_active: 0
+  appointment_status: cancelled
+  outcome: cancelled
+script:
+- tool: cancel_appointment
+  args:
+    contact: '+923001112233'
+    date: tomorrow
+    caller_confirmed: true
+  expect: ok

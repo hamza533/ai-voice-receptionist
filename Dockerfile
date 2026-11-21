@@ -45,7 +45,11 @@ CMD ["python", "-m", "agent.main", "start"]
 
 FROM ${UV_IMAGE} AS dev
 ENV UV_LINK_MODE=copy UV_PROJECT_ENVIRONMENT=/opt/venv UV_PYTHON_DOWNLOADS=never PATH=/opt/venv/bin:$PATH
-RUN apt-get update && apt-get install -y --no-install-recommends make git && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends make git curl && rm -rf /var/lib/apt/lists/*
+COPY --from=node:22.23.5-bookworm-slim /usr/local/bin/node /usr/local/bin/node
+COPY --from=node:22.23.5-bookworm-slim /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx
 WORKDIR /src
 COPY pyproject.toml uv.lock .python-version ./
 RUN --mount=type=cache,target=/root/.cache/uv uv sync --frozen --all-extras

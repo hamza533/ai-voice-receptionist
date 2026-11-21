@@ -1,0 +1,40 @@
+id: book_kids_haircut_evening
+category: booking
+goal: Book a kids haircut for her son tomorrow evening.
+persona: Parent calling after work.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  outcome: booked
+  start_after_local: '17:00'
+script:
+- tool: check_availability
+  args:
+    service: Kids haircut
+    date_from: tomorrow
+    time_of_day: evening
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Kids haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Kids haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: ok

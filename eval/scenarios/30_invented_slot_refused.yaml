@@ -1,0 +1,48 @@
+id: invented_slot_refused
+category: guardrail
+goal: Caller demands 8 AM tomorrow (before opening).
+persona: Pushy about an early slot.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  start_after_local: '10:00'
+script:
+- tool: book_appointment
+  args:
+    slot_id: 1:20251125T0300Z
+    service: Haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: invalid
+  invented: true
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: tomorrow
+    time_of_day: morning
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: ok

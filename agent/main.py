@@ -36,9 +36,7 @@ log = logging.getLogger("agent")
 
 AGENT_NAME = os.environ.get("LIVEKIT_AGENT_NAME", "luma-receptionist")
 VOICE_MODEL = os.environ.get("VOICE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
-BUSY_LINE = (
-    "Sorry, the receptionist is busy right now. Please try again in a minute. Goodbye."
-)
+BUSY_LINE = "Sorry, the receptionist is busy right now. Please try again in a minute. Goodbye."
 
 
 class CallState:
@@ -66,6 +64,13 @@ class Receptionist(Agent):
         self.api = api
         self.state = state
         self.job_ctx = ctx
+        self._tasks: set[asyncio.Task[Any]] = set()
+
+    def _spawn(self, coro: Any) -> None:
+        """Run in the background, keeping a reference so the task isn't garbage-collected."""
+        task = asyncio.create_task(coro)
+        self._tasks.add(task)
+        task.add_done_callback(self._tasks.discard)
 
     async def _tool(self, name: str, args: dict[str, Any]) -> str:
         args = {k: v for k, v in args.items() if v is not None}
@@ -123,8 +128,13 @@ class Receptionist(Agent):
         """
         return await self._tool(
             "check_availability",
-            {"service": service, "date_from": date_from, "date_to": date_to, "staff": staff,
-             "time_of_day": time_of_day},
+            {
+                "service": service,
+                "date_from": date_from,
+                "date_to": date_to,
+                "staff": staff,
+                "time_of_day": time_of_day,
+            },
         )
 
     @function_tool()
@@ -153,9 +163,15 @@ class Receptionist(Agent):
         """
         return await self._tool(
             "book_appointment",
-            {"slot_id": slot_id, "service": service, "customer_name": customer_name,
-             "phone": phone, "email": email, "notes": notes,
-             "caller_confirmed": caller_confirmed},
+            {
+                "slot_id": slot_id,
+                "service": service,
+                "customer_name": customer_name,
+                "phone": phone,
+                "email": email,
+                "notes": notes,
+                "caller_confirmed": caller_confirmed,
+            },
         )
 
     @function_tool()
@@ -179,8 +195,13 @@ class Receptionist(Agent):
         """
         return await self._tool(
             "reschedule_appointment",
-            {"contact": contact, "date": date, "new_slot_id": new_slot_id,
-             "appointment_ref": appointment_ref, "caller_confirmed": caller_confirmed},
+            {
+                "contact": contact,
+                "date": date,
+                "new_slot_id": new_slot_id,
+                "appointment_ref": appointment_ref,
+                "caller_confirmed": caller_confirmed,
+            },
         )
 
     @function_tool()
@@ -202,13 +223,21 @@ class Receptionist(Agent):
         """
         return await self._tool(
             "cancel_appointment",
-            {"contact": contact, "date": date, "appointment_ref": appointment_ref,
-             "caller_confirmed": caller_confirmed},
+            {
+                "contact": contact,
+                "date": date,
+                "appointment_ref": appointment_ref,
+                "caller_confirmed": caller_confirmed,
+            },
         )
 
     @function_tool()
     async def take_message(
-        self, context: RunContext, name: str, callback_number: str, message: str,
+        self,
+        context: RunContext,
+        name: str,
+        callback_number: str,
+        message: str,
         urgent: bool = False,
     ) -> str:
         """Save a message for the team; they get an email.
@@ -221,13 +250,20 @@ class Receptionist(Agent):
         """
         return await self._tool(
             "take_message",
-            {"name": name, "callback_number": callback_number, "message": message,
-             "urgent": urgent},
+            {
+                "name": name,
+                "callback_number": callback_number,
+                "message": message,
+                "urgent": urgent,
+            },
         )
 
     @function_tool()
     async def request_human(
-        self, context: RunContext, name: str | None = None, callback_number: str | None = None,
+        self,
+        context: RunContext,
+        name: str | None = None,
+        callback_number: str | None = None,
         reason: str | None = None,
     ) -> str:
         """Hand off to a person: the caller asked for one or you can't help.
@@ -238,21 +274,32 @@ class Receptionist(Agent):
             reason: short reason
         """
         raw = await self.api.tool(
-            self.state.call_id, "request_human",
-            {k: v for k, v in {"name": name, "callback_number": callback_number,
-                               "reason": reason}.items() if v},
+            self.state.call_id,
+            "request_human",
+            {
+                k: v
+                for k, v in {
+                    "name": name,
+                    "callback_number": callback_number,
+                    "reason": reason,
+                }.items()
+                if v
+            },
         )
         await self._publish("request_human", str(raw.get("status", "error")))
         if raw.get("status") == "transferred":
             self.state.transfer_to = raw.get("data", {}).get("transfer_to")
-            asyncio.create_task(self._transfer_after_goodbye())
+            self._spawn(self._transfer_after_goodbye())
         return _result(raw)
 
     async def _transfer_after_goodbye(self) -> None:
         await asyncio.sleep(4)  # let the agent say "connecting you now"
         sip = next(
-            (p for p in self.job_ctx.room.remote_participants.values()
-             if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP),
+            (
+                p
+                for p in self.job_ctx.room.remote_participants.values()
+                if p.kind == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+            ),
             None,
         )
         if sip is None or not self.state.transfer_to:
@@ -267,7 +314,7 @@ class Receptionist(Agent):
     async def end_call(self, context: RunContext) -> str:
         """End the call after saying goodbye (caller is done, or abusive after a warning)."""
         self.state.end_reason = "agent_ended"
-        asyncio.create_task(_hang_up_soon(self.job_ctx, 3))
+        self._spawn(_hang_up_soon(self.job_ctx, 3))
         return "Say a short goodbye now; the call will end."
 
 
@@ -302,10 +349,16 @@ async def entrypoint(ctx: JobContext) -> None:
 
     if not start.get("allowed"):
         # Speak a short busy message with the realtime model, then hang up.
-        session: AgentSession = AgentSession(llm=google.realtime.RealtimeModel(
-            model=VOICE_MODEL, voice=os.environ.get("VOICE_NAME", "Aoede")))
-        await session.start(agent=Agent(instructions="Say only the line you are given."),
-                            room=ctx.room, record=False)
+        session: AgentSession = AgentSession(
+            llm=google.realtime.RealtimeModel(
+                model=VOICE_MODEL, voice=os.environ.get("VOICE_NAME", "Aoede")
+            )
+        )
+        await session.start(
+            agent=Agent(instructions="Say only the line you are given."),
+            room=ctx.room,
+            record=False,
+        )
         await session.generate_reply(instructions=f"Say exactly: {BUSY_LINE}")
         await asyncio.sleep(6)
         await api.aclose()
@@ -335,9 +388,7 @@ async def entrypoint(ctx: JobContext) -> None:
         if not text:
             return
         speaker = "caller" if item.role == "user" else "agent"
-        state.turns.append(
-            {"speaker": speaker, "text": text, "ts": datetime.now(UTC).isoformat()}
-        )
+        state.turns.append({"speaker": speaker, "text": text, "ts": datetime.now(UTC).isoformat()})
         if item.role == "assistant":
             if item.interrupted:
                 state.interruptions += 1
@@ -413,8 +464,10 @@ async def entrypoint(ctx: JobContext) -> None:
 
     timer = asyncio.create_task(_call_timer())
     ctx.add_shutdown_callback(lambda: _cancel(timer))
-    log.info("call started", extra={"call_id": state.call_id, "channel": channel,
-                                    "started_at": started_at.isoformat()})
+    log.info(
+        "call started",
+        extra={"call_id": state.call_id, "channel": channel, "started_at": started_at.isoformat()},
+    )
 
 
 async def _cancel(task: asyncio.Task[Any]) -> None:

@@ -266,10 +266,12 @@ def seed_demo_activity(
                 return member, start
         return None
 
-    # Calls over the last 7 days, busiest on Friday/Saturday.
-    for day_back in range(6, -1, -1):
+    # Calls over the last 14 days, busiest on Friday/Saturday.
+    for day_back in range(13, -1, -1):
         day = now - timedelta(days=day_back)
         n = rng.randint(4, 7) + (3 if day.astimezone(zone).weekday() in (4, 5) else 0)
+        if day_back > 6:  # the week before: a little quieter
+            n = max(2, n - 2)
         for _ in range(n):
             local_start = datetime.combine(
                 day.astimezone(zone).date(),

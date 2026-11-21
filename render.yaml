@@ -1,0 +1,58 @@
+# Render blueprint for the free live demo (API only; the dashboard is on Vercel and the
+# voice agent on LiveKit Cloud). Database: Neon (free), set DATABASE_URL by hand.
+services:
+  - type: web
+    name: ai-voice-receptionist-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEMO_MODE
+        value: "true"
+      - key: WORKER_MODE
+        value: embedded          # the free plan has no background workers
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: ALLOWED_ORIGINS
+        sync: false              # https://<your-app>.vercel.app
+      - key: DATABASE_URL
+        sync: false              # Neon connection string (postgresql+psycopg://...?sslmode=require)
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: AGENT_SERVICE_TOKEN
+        sync: false              # same value as the LiveKit Cloud agent's secret
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_MODEL
+        value: gemini-2.5-flash
+      - key: GOOGLE_SERVICE_ACCOUNT_JSON
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: STAFF_NOTIFY_EMAIL
+        sync: false
+      - key: DEMO_DAILY_CALLS
+        value: "20"
+      - key: SENTRY_DSN
+        sync: false

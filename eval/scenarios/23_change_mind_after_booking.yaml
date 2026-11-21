@@ -1,0 +1,45 @@
+id: change_mind_after_booking
+category: changes_mind
+goal: Books, then cancels in the same call.
+persona: Remembers a clash right after booking.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+- cancel_appointment
+expected:
+  appointments_active: 0
+  appointment_status: cancelled
+script:
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: tomorrow
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: ok
+- tool: cancel_appointment
+  args:
+    contact: ayesha.k@example.com
+    date: tomorrow
+    caller_confirmed: true
+  expect: ok

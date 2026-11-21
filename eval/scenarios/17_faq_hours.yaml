@@ -1,0 +1,21 @@
+id: faq_hours
+category: faq
+goal: Ask if they're open on Sunday.
+persona: Planning the weekend.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- get_business_info
+expected:
+  appointments_active: 0
+  outcome: faq_answered
+script:
+- tool: get_business_info
+  args:
+    topic: hours
+  expect: ok
+  answer_contains: closed

@@ -1,0 +1,21 @@
+id: faq_prices
+category: faq
+goal: Ask how much a hair colour costs.
+persona: Comparing salons.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- get_business_info
+expected:
+  appointments_active: 0
+  outcome: faq_answered
+script:
+- tool: get_business_info
+  args:
+    topic: services
+  expect: ok
+  answer_contains: 9,000

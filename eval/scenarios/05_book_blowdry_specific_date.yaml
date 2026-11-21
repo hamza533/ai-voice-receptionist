@@ -1,0 +1,39 @@
+id: book_blowdry_specific_date
+category: booking
+goal: Book a blow-dry on 27 November.
+persona: Has a wedding to attend.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  outcome: booked
+  on_local_date: '2025-11-27'
+script:
+- tool: check_availability
+  args:
+    service: Blow-dry
+    date_from: '2025-11-27'
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Blow-dry
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Blow-dry
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: ok

@@ -110,7 +110,7 @@ services:
       DATABASE_URL: postgresql+psycopg://receptionist:receptionist@db:5432/receptionist_test
       TEST_DATABASE_URL: postgresql+psycopg://receptionist:receptionist@db:5432/receptionist_test
       API_URL: http://api:8000
-    volumes: [".:/src", "/src/web"]
+    volumes: [".:/src", "/src/web/node_modules", "/src/.venv"]
     depends_on:
       db: {condition: service_healthy}
 

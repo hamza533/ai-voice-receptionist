@@ -1,0 +1,21 @@
+id: ask_for_human_transfer
+category: handoff
+goal: Asks for a person on a production line with transfers on.
+persona: Prefers humans.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings:
+  transfer_enabled: true
+  handoff_number: '+15550100199'
+expected_tools:
+- request_human
+expected:
+  messages: 0
+script:
+- tool: request_human
+  args:
+    name: Ayesha Khan
+  expect: transferred

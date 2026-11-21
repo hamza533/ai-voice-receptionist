@@ -70,7 +70,7 @@ export default function OverviewPage() {
       </div>
 
       {/* KPI tiles */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <Tile
           icon={<PhoneCall className="size-4" />}
           value={loading ? null : String(total)}
@@ -297,7 +297,7 @@ function Tile({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border p-5",
+        "relative overflow-hidden rounded-2xl border p-4 sm:p-5",
         highlight ? "border-primary bg-primary text-white shadow-[0_12px_30px_-14px_rgb(0_104_91/0.8)]" : "surface-card",
       )}
     >
@@ -315,7 +315,7 @@ function Tile({
       {value === null ? (
         <Skeleton className={cn("h-9 w-20", highlight && "bg-white/20")} />
       ) : (
-        <p className="text-[32px] font-bold leading-10 tracking-tight tabular-nums">{value}</p>
+        <p className="text-2xl font-bold leading-8 tracking-tight tabular-nums sm:text-[32px] sm:leading-10">{value}</p>
       )}
       <p className={cn("text-sm", highlight ? "text-white/80" : "text-muted-foreground")}>{label}</p>
       {highlight ? (

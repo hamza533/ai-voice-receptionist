@@ -1,0 +1,44 @@
+id: change_mind_service
+category: changes_mind
+goal: Starts with a haircut, switches to a beard trim.
+persona: Indecisive.
+caller:
+  name: Bilal Ahmed
+  phone: '+923004445566'
+  email: bilal.a@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  service: Beard trim
+  outcome: booked
+script:
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: tomorrow
+  expect: ok
+- tool: check_availability
+  args:
+    service: Beard trim
+    date_from: tomorrow
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Beard trim
+    customer_name: Bilal Ahmed
+    email: bilal.a@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Beard trim
+    customer_name: Bilal Ahmed
+    email: bilal.a@example.com
+    caller_confirmed: true
+  expect: ok

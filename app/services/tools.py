@@ -743,3 +743,17 @@ def _record(
         )
     )
     ctx.db.commit()
+
+
+TOOL_DESCRIPTIONS = {
+    "get_business_info": "Opening hours, address, services with prices and durations, and staff.",
+    "answer_faq": "Look up the salon's FAQ (parking, payment, policies, products...).",
+    "check_availability": "Find free appointment times. Only times returned here may be offered.",
+    "book_appointment": "Book a slot from check_availability. Set caller_confirmed=true only "
+    "after reading back the details and hearing a clear yes.",
+    "reschedule_appointment": "Move the caller's booking (found by their phone or email and the "
+    "booking date) to a new slot from check_availability.",
+    "cancel_appointment": "Cancel the caller's booking (found by their phone or email and date).",
+    "take_message": "Save a message for the team; they get an email.",
+    "request_human": "Hand off to a person when the caller asks or you can't help.",
+}

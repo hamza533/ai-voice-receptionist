@@ -1,0 +1,37 @@
+id: ambiguous_next_friday
+category: ambiguous_date
+goal: Wants a haircut 'next Friday'.
+persona: Means the Friday of next week.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  on_local_date: '2025-12-05'
+script:
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: next friday
+  expect: ok
+  ambiguous: true
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: '2025-12-05'
+    date_to: '2025-12-05'
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Haircut
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: ok

@@ -15,7 +15,7 @@ import type { Appointment, Hours, PublicBusiness, Staff } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
 
-const HOUR_PX = 64;
+const HOUR_PX = 80;
 
 function addDays(day: string, n: number) {
   const d = new Date(`${day}T12:00:00Z`);
@@ -151,7 +151,7 @@ export default function AppointmentsPage() {
                 <div className="relative grid" style={{ gridTemplateColumns: `64px repeat(${activeStaff.length}, 1fr)` }}>
                   <div>
                     {Array.from({ length: endHour - startHour }).map((_, i) => (
-                      <div key={i} className="h-16 pr-2 pt-1 text-right text-xs text-muted-foreground" style={{ height: HOUR_PX }}>
+                      <div key={i} className="pr-2 pt-1 text-right text-xs text-muted-foreground" style={{ height: HOUR_PX }}>
                         {((startHour + i + 11) % 12) + 1} {startHour + i < 12 ? "AM" : "PM"}
                       </div>
                     ))}
@@ -166,7 +166,7 @@ export default function AppointmentsPage() {
                         .map((a) => {
                           const top = ((localMinutes(a.start_utc, tz) - startHour * 60) / 60) * HOUR_PX;
                           const height = Math.max(
-                            30,
+                            34,
                             ((localMinutes(a.end_utc, tz) - localMinutes(a.start_utc, tz)) / 60) * HOUR_PX - 4,
                           );
                           const isSel = selected?.id === a.id;
@@ -181,18 +181,35 @@ export default function AppointmentsPage() {
                               )}
                               style={{ top: top + 2, height }}
                             >
-                              <div className="flex items-center justify-between gap-1">
-                                <span className={cn("label-caps truncate", isSel ? "text-primary-fixed" : "text-primary")}>{a.service}</span>
-                                {a.source === "ai" ? (
-                                  <span className={cn("shrink-0 rounded-full px-1.5 text-[10px] font-semibold", isSel ? "bg-white/20" : "bg-primary-fixed/70 text-[#00201b]")}>
-                                    ✦ AI
+                              {height < 60 ? (
+                                // Short appointments: one line so nothing is clipped.
+                                <div className="flex h-full items-center gap-2">
+                                  <span className="truncate text-sm font-semibold">{a.customer_name}</span>
+                                  <span className={cn("truncate", isSel ? "text-white/80" : "text-muted-foreground")}>
+                                    {a.service} · {fmtTime(a.start_utc, tz)}
                                   </span>
-                                ) : null}
-                              </div>
-                              <p className="truncate text-sm font-semibold">{a.customer_name}</p>
-                              <p className={cn("truncate", isSel ? "text-white/80" : "text-muted-foreground")}>
-                                {fmtTime(a.start_utc, tz)} – {fmtTime(a.end_utc, tz)}
-                              </p>
+                                  {a.source === "ai" ? (
+                                    <span className={cn("ml-auto shrink-0 rounded-full px-1.5 text-[10px] font-semibold", isSel ? "bg-white/20" : "bg-primary-fixed/70 text-[#00201b]")}>
+                                      ✦ AI
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center justify-between gap-1">
+                                    <span className={cn("label-caps truncate", isSel ? "text-primary-fixed" : "text-primary")}>{a.service}</span>
+                                    {a.source === "ai" ? (
+                                      <span className={cn("shrink-0 rounded-full px-1.5 text-[10px] font-semibold", isSel ? "bg-white/20" : "bg-primary-fixed/70 text-[#00201b]")}>
+                                        ✦ AI
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <p className="truncate text-sm font-semibold">{a.customer_name}</p>
+                                  <p className={cn("truncate", isSel ? "text-white/80" : "text-muted-foreground")}>
+                                    {fmtTime(a.start_utc, tz)} – {fmtTime(a.end_utc, tz)}
+                                  </p>
+                                </>
+                              )}
                             </button>
                           );
                         })}

@@ -79,6 +79,7 @@ def public_business(
         "demo_mode": settings.demo_mode,
         "max_call_minutes": settings.effective_max_call_minutes,
         "web_call_enabled": settings.livekit_enabled,
+        "calendar": get_calendar(settings).name,
     }
 
 

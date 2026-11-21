@@ -127,6 +127,17 @@ OUTCOME_WEIGHTS = [
 ]
 
 
+TOOL_AFTER_TURN = {
+    "check_availability": 1,
+    "book_appointment": 5,
+    "reschedule_appointment": 5,
+    "cancel_appointment": 5,
+    "answer_faq": 1,
+    "take_message": 3,
+    "request_human": 3,
+}
+
+
 def _fake_phone(rng: random.Random) -> str:
     return f"+92300{rng.randint(1000000, 9999999)}"
 
@@ -322,6 +333,8 @@ def seed_demo_activity(
                     )
                 )
             for tool, status, s in tools:
+                # Place each tool call right after the caller turn that triggered it.
+                after_turn = TOOL_AFTER_TURN.get(tool, 1)
                 db.add(
                     ToolCall(
                         call_id=call.id,
@@ -330,6 +343,7 @@ def seed_demo_activity(
                         result_status=status,
                         result_summary=s,
                         latency_ms=rng.randint(90, 420),
+                        created_at=started + timedelta(seconds=4 + after_turn * 12 + 6),
                     )
                 )
             if slot and outcome in {"booked", "rescheduled"}:

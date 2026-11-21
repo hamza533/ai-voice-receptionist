@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.models import Appointment, BusinessConfig, Call, Message, User
+from app.models import Appointment, BusinessConfig, Call, Message, ToolCall, User
 from app.schemas import (
     AppointmentOut,
     CallDetail,
@@ -118,7 +118,7 @@ def appointment_out(a: Appointment) -> AppointmentOut:
         status=a.status,
         source="ai" if a.call_id else "manual",
         call_id=a.call_id,
-        calendar_synced=bool(a.calendar_event_id),
+        calendar_synced=bool(a.calendar_event_id) and get_settings().calendar_enabled,
     )
 
 
@@ -280,6 +280,37 @@ def update_message(
 
 
 # ---------------------------------------------------------------- stats
+
+
+@router.get("/stats/unanswered")
+def unanswered_questions(
+    days: int = Query(default=7, ge=1, le=90),
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+) -> list[dict[str, object]]:
+    """Questions the receptionist couldn't answer from the FAQ: candidates for new FAQs."""
+    since = utcnow() - timedelta(days=days)
+    rows = db.scalars(
+        select(ToolCall)
+        .where(
+            ToolCall.tool == "answer_faq",
+            ToolCall.result_status == "not_found",
+            ToolCall.created_at >= since,
+        )
+        .order_by(ToolCall.created_at.desc())
+        .limit(50)
+    )
+    seen: dict[str, dict[str, object]] = {}
+    for r in rows:
+        q = str((r.args or {}).get("question", "")).strip()
+        if not q:
+            continue
+        key = q.lower()
+        if key in seen:
+            seen[key]["count"] = int(str(seen[key]["count"])) + 1
+        else:
+            seen[key] = {"question": q, "count": 1, "call_id": str(r.call_id), "at": r.created_at}
+    return list(seen.values())
 
 
 @router.get("/stats/overview")

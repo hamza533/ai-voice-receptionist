@@ -160,6 +160,6 @@ def test_retention_purge(db, settings) -> None:  # type: ignore[no-untyped-def]
 def test_periodic_jobs_scheduled_once_per_day(db, settings) -> None:  # type: ignore[no-untyped-def]
     w = Worker(settings)
     w.schedule_periodic()
-    w._last_schedule = 0
+    w._last_schedule = None  # force a second scheduling pass on the same day
     w.schedule_periodic()
     assert db.scalar(select(func.count(Job.id)).where(Job.kind == "purge")) == 1

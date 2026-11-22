@@ -45,7 +45,7 @@ class Worker:
         self.settings = settings or get_settings()
         self.worker_id = worker_id or f"{socket.gethostname()}:{uuid.uuid4().hex[:6]}"
         self._stop = threading.Event()
-        self._last_schedule = 0.0
+        self._last_schedule: float | None = None  # None = never ran (monotonic may start near 0)
 
     def stop(self) -> None:
         self._stop.set()
@@ -55,7 +55,7 @@ class Worker:
         return self._stop.is_set()
 
     def schedule_periodic(self) -> None:
-        if time.monotonic() - self._last_schedule < 300:
+        if self._last_schedule is not None and time.monotonic() - self._last_schedule < 300:
             return
         self._last_schedule = time.monotonic()
         now = datetime.now(UTC)

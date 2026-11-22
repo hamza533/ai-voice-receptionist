@@ -18,6 +18,7 @@ RUN npx next build
 
 FROM ${NODE_IMAGE} AS runtime
 WORKDIR /app
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 RUN groupadd --system app && useradd --system --gid app app
 COPY --from=build /app/public ./public

@@ -61,7 +61,7 @@ export function ProblemScene() {
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
-      <div style={{ position: "absolute", left: 140, top: 250, width: 900 }}>
+      <div style={{ position: "absolute", left: 140, top: 330, width: 900 }}>
         <Title
           eyebrow="The problem"
           title={<>Every missed call<br />is a lost booking.</>}
@@ -69,7 +69,7 @@ export function ProblemScene() {
           size={84}
         />
       </div>
-      <div style={{ position: "absolute", right: 160, top: 230, width: 560, display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ position: "absolute", right: 160, top: 290, width: 600, display: "flex", flexDirection: "column", gap: 20 }}>
         {calls.map((t, i) => {
           const p = interpolate(frame - 10 - i * 9, [0, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
           return (
@@ -265,7 +265,7 @@ export function CallDetailScene() {
         <Title eyebrow="Full transparency" title="Transcript, tools and response time" size={54} />
       </div>
       <div style={{ position: "absolute", left: L, top: T + pan * 0 }}>
-        <BrowserFrame src="shots/06-call-detail.png" url="luma-hair.receptly.app/dashboard/calls/…" width={W} crop={{ height: 860 }} />
+        <BrowserFrame src="shots/06-call-detail.png" url="luma-hair.receptly.app/dashboard/calls/…" width={W} crop={{ height: 780 }} />
       </div>
       <Callout {...m(490, 768, 740, 36)} label="Real calendar check, logged" delay={36} side="bottom" />
       <Callout {...m(1265, 230, 662, 114)} label="Sub-second replies" delay={96} side="bottom" />
@@ -319,7 +319,7 @@ export function GuaranteesScene() {
       <div style={{ position: "absolute", left: 140, top: 110 }}>
         <Title dark eyebrow="Built to be trusted" title="Reliable by design" sub="Rules enforced by the system, not just the AI — and verified by an automated test suite." size={68} />
       </div>
-      <div style={{ position: "absolute", left: 140, right: 140, bottom: 130, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 26 }}>
+      <div style={{ position: "absolute", left: 140, right: 140, top: 470, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 26 }}>
         {cards.map((c, i) => {
           const p = interpolate(frame - 30 - i * 12, [0, 22], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
           return (

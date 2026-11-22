@@ -122,7 +122,7 @@ export default function OverviewPage() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="font-semibold">
-                {data?.handoffs ?? 0} staff handoffs{" "}
+                {data?.handoffs ?? 0} staff {(data?.handoffs ?? 0) === 1 ? "handoff" : "handoffs"}{" "}
                 <Pill className="ml-1">{pct(data?.handoffs ?? 0)}%</Pill>
               </p>
               <p className="text-sm text-muted-foreground">Callers who asked for a person — your team was alerted.</p>

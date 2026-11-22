@@ -34,8 +34,8 @@ third-party keys is built, tested and green.
 5. Deploy the demo: Neon (DATABASE_URL), Render (`render.yaml`, DEMO_MODE=true), Vercel
    (`web/`, env `API_URL=https://<render-app>.onrender.com`), LiveKit Cloud agent
    (`lk agent create` with the `agent` Docker target). Set `ALLOWED_ORIGINS` to the Vercel URL.
-6. Record the demo GIF + 60–90 s video from the running app (a showcase video is in
-   `docs/images/`), and draft the Upwork case study from README numbers.
+6. Showcase video (73 s) and README GIF are in `docs/images/` (built from the running app by
+   `showcase/`). After step 2, add a voice-call clip and draft the Upwork case study.
 
 ## Blockers / open questions
 - LLM-mode eval numbers and voice latency need `GEMINI_API_KEY` and LiveKit keys (not in repo).

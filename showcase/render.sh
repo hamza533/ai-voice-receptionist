@@ -17,6 +17,14 @@ if [ "$1" = "stills" ]; then
       --browser-executable="$SHELL_BIN" 2>&1 | tail -1
   done
 else
-  npx remotion render Showcase /sc/out/showcase.mp4 --codec=h264 --crf=18 --concurrency=6 \
+  npx remotion render Showcase /sc/out/showcase.mp4 --codec=h264 --crf=21 --concurrency=6 \
     --browser-executable="$SHELL_BIN" 2>&1 | tail -3
+fi
+if [ "$1" != "stills" ]; then
+  FF="npx remotion ffmpeg -loglevel error"
+  # README GIF: the live-call scene, 12 fps, 960 px wide.
+  $FF -ss 13 -t 18 -i /sc/out/showcase.mp4 -vf "fps=12,scale=960:-1:flags=lanczos,palettegen=max_colors=128" -y /tmp/pal.png
+  $FF -ss 13 -t 18 -i /sc/out/showcase.mp4 -i /tmp/pal.png -lavfi "fps=12,scale=960:-1:flags=lanczos[x];[x][1:v]paletteuse=dither=bayer:bayer_scale=4" -y /sc/out/demo.gif
+  $FF -ss 4 -i /sc/out/showcase.mp4 -frames:v 1 -y /sc/out/poster.png
+  ls -la /sc/out
 fi

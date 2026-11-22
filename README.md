@@ -6,7 +6,7 @@
 that answers by phone or website, books, moves and cancels appointments in Google Calendar,
 and hands off to a human when needed.**
 
-[Live demo](#live-demo) · [2-min video](docs/images/showcase.mp4) · [Architecture](docs/architecture.md)
+[Live demo](#live-demo) · [Showcase video (73 s)](docs/images/showcase.mp4) · [Architecture](docs/architecture.md)
 
 Demo business: **Luma Hair Studio** (fictional), receptionist persona **Ava**.
 

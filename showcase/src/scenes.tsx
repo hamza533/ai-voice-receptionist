@@ -245,7 +245,7 @@ export function OverviewScene() {
         <BrowserFrame src="shots/04-overview.png" url="luma-hair.receptly.app/dashboard" width={W} crop={{ height: 860 }} />
       </div>
       <Callout {...m(795, 213, 371, 213)} label="Appointments booked by AI" delay={40} side="bottom" />
-      <Callout {...m(1310, 720, 645, 420)} label="Every call summarised" delay={110} side="left" />
+      <Callout {...m(1310, 720, 645, 420)} label="Every call summarised" delay={110} side="top" />
     </AbsoluteFill>
   );
 }
@@ -316,10 +316,10 @@ export function GuaranteesScene() {
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop dark />
-      <div style={{ position: "absolute", left: 140, top: 110 }}>
+      <div style={{ position: "absolute", left: 140, top: 190 }}>
         <Title dark eyebrow="Built to be trusted" title="Reliable by design" sub="Rules enforced by the system, not just the AI — and verified by an automated test suite." size={68} />
       </div>
-      <div style={{ position: "absolute", left: 140, right: 140, top: 470, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 26 }}>
+      <div style={{ position: "absolute", left: 140, right: 140, top: 560, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 26 }}>
         {cards.map((c, i) => {
           const p = interpolate(frame - 30 - i * 12, [0, 22], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
           return (

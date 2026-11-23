@@ -1,0 +1,39 @@
+id: sunday_request
+category: out_of_hours
+goal: Wants a beard trim on Sunday (closed).
+persona: Only free at weekends.
+caller:
+  name: Bilal Ahmed
+  phone: '+923004445566'
+  email: bilal.a@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  not_on_local_date: '2025-11-30'
+script:
+- tool: check_availability
+  args:
+    service: Beard trim
+    date_from: sunday
+    date_to: sunday
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Beard trim
+    customer_name: Bilal Ahmed
+    email: bilal.a@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Beard trim
+    customer_name: Bilal Ahmed
+    email: bilal.a@example.com
+    caller_confirmed: true
+  expect: ok

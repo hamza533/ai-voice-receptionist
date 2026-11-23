@@ -1,0 +1,40 @@
+id: reschedule_by_phone
+category: reschedule
+goal: Move her haircut from 25 Nov to Wednesday.
+persona: Calls from the number she booked with.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup:
+  existing:
+  - service: Haircut
+    staff: Sara
+    date: '2025-11-25'
+    time: '15:00'
+    name: Ayesha Khan
+    phone: '+923001112233'
+    email: ayesha.k@example.com
+settings: {}
+expected_tools:
+- check_availability
+- reschedule_appointment
+expected:
+  appointments_active: 1
+  appointment_status: rescheduled
+  outcome: rescheduled
+  on_local_date: '2025-11-26'
+script:
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: wednesday
+    staff: Sara
+  expect: ok
+- tool: reschedule_appointment
+  args:
+    contact: '+923001112233'
+    date: '2025-11-25'
+    new_slot_id: $slot[0]
+    caller_confirmed: true
+  expect: ok

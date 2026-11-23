@@ -1,0 +1,45 @@
+id: reschedule_by_email
+category: reschedule
+goal: Move his haircut to Thursday, identifies by email.
+persona: Calling from a work phone, gives his email.
+caller:
+  name: Bilal Ahmed
+  phone: '+923009990000'
+  email: bilal.a@example.com
+setup:
+  existing:
+  - service: Haircut
+    staff: Sara
+    date: '2025-11-25'
+    time: '15:00'
+    name: Bilal Ahmed
+    phone: '+923004445566'
+    email: bilal.a@example.com
+settings: {}
+expected_tools:
+- check_availability
+- reschedule_appointment
+expected:
+  appointments_active: 1
+  appointment_status: rescheduled
+  outcome: rescheduled
+script:
+- tool: check_availability
+  args:
+    service: Haircut
+    date_from: thursday
+  expect: ok
+- tool: reschedule_appointment
+  args:
+    contact: bilal.a@example.com
+    date: '2025-11-25'
+    new_slot_id: $slot[0]
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: reschedule_appointment
+  args:
+    contact: bilal.a@example.com
+    date: '2025-11-25'
+    new_slot_id: $slot[0]
+    caller_confirmed: true
+  expect: ok

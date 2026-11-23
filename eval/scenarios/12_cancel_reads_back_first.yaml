@@ -1,0 +1,35 @@
+id: cancel_reads_back_first
+category: cancel
+goal: Cancel, but only after hearing which booking it is.
+persona: Has two salons, wants to be sure.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup:
+  existing:
+  - service: Haircut
+    staff: Sara
+    date: '2025-11-25'
+    time: '15:00'
+    name: Ayesha Khan
+    phone: '+923001112233'
+    email: ayesha.k@example.com
+settings: {}
+expected_tools:
+- cancel_appointment
+expected:
+  appointments_active: 0
+  appointment_status: cancelled
+script:
+- tool: cancel_appointment
+  args:
+    contact: '+923001112233'
+    date: tomorrow
+  expect: needs_confirmation
+- tool: cancel_appointment
+  args:
+    contact: '+923001112233'
+    date: tomorrow
+    caller_confirmed: true
+  expect: ok

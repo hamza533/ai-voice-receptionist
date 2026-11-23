@@ -1,0 +1,514 @@
+{
+  "mode": "tools",
+  "generated_at": "2026-11-23T09:34:15+00:00",
+  "scenarios": 30,
+  "task_success_rate": 1.0,
+  "correct_tool_call_rate": 1.0,
+  "invented_slot_rate": 0.0,
+  "invented_slot_attempts": 2,
+  "double_bookings": 0,
+  "handoff_accuracy": 1.0,
+  "guardrail_pass_rate": 1.0,
+  "concurrency_stress": {
+    "attempts": 20,
+    "succeeded": 1,
+    "appointments": 1
+  },
+  "results": [
+    {
+      "id": "book_haircut_tomorrow_sara",
+      "category": "booking",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "book_beard_trim_omar_friday",
+      "category": "booking",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "book_colour_first_available",
+      "category": "booking",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "book_kids_haircut_evening",
+      "category": "booking",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "book_blowdry_specific_date",
+      "category": "booking",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "reschedule_by_phone",
+      "category": "reschedule",
+      "passed": true,
+      "steps_ok": 2,
+      "steps_total": 2,
+      "tools_used": [
+        "check_availability",
+        "reschedule_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "reschedule_by_email",
+      "category": "reschedule",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "check_availability",
+        "reschedule_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "reschedule_to_other_staff",
+      "category": "reschedule",
+      "passed": true,
+      "steps_ok": 2,
+      "steps_total": 2,
+      "tools_used": [
+        "check_availability",
+        "reschedule_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "reschedule_invented_time_refused",
+      "category": "reschedule",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "check_availability",
+        "reschedule_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 1,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "cancel_by_phone",
+      "category": "cancel",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "cancel_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "cancel_by_email",
+      "category": "cancel",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "cancel_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "cancel_reads_back_first",
+      "category": "cancel",
+      "passed": true,
+      "steps_ok": 2,
+      "steps_total": 2,
+      "tools_used": [
+        "cancel_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "faq_parking",
+      "category": "faq",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "answer_faq"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "faq_payment",
+      "category": "faq",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "answer_faq"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "faq_patch_test",
+      "category": "faq",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "answer_faq"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "faq_prices",
+      "category": "faq",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "get_business_info"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "faq_hours",
+      "category": "faq",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "get_business_info"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "fully_booked_day",
+      "category": "fully_booked",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "holiday_closed",
+      "category": "fully_booked",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "sunday_request",
+      "category": "out_of_hours",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "late_evening_colour",
+      "category": "out_of_hours",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "change_mind_service",
+      "category": "changes_mind",
+      "passed": true,
+      "steps_ok": 4,
+      "steps_total": 4,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "change_mind_after_booking",
+      "category": "changes_mind",
+      "passed": true,
+      "steps_ok": 4,
+      "steps_total": 4,
+      "tools_used": [
+        "book_appointment",
+        "cancel_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "ask_for_human_demo",
+      "category": "handoff",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "request_human"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "ask_for_human_transfer",
+      "category": "handoff",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "request_human"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "off_topic_laptop",
+      "category": "guardrail",
+      "passed": true,
+      "steps_ok": 1,
+      "steps_total": 1,
+      "tools_used": [
+        "answer_faq"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "abusive_caller",
+      "category": "guardrail",
+      "passed": true,
+      "steps_ok": 0,
+      "steps_total": 0,
+      "tools_used": [],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "ambiguous_next_friday",
+      "category": "ambiguous_date",
+      "passed": true,
+      "steps_ok": 3,
+      "steps_total": 3,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "wrong_caller_cannot_cancel",
+      "category": "guardrail",
+      "passed": true,
+      "steps_ok": 2,
+      "steps_total": 2,
+      "tools_used": [
+        "cancel_appointment"
+      ],
+      "tool_match": true,
+      "invented_attempts": 0,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    },
+    {
+      "id": "invented_slot_refused",
+      "category": "guardrail",
+      "passed": true,
+      "steps_ok": 4,
+      "steps_total": 4,
+      "tools_used": [
+        "book_appointment",
+        "check_availability"
+      ],
+      "tool_match": true,
+      "invented_attempts": 1,
+      "invented_accepted": 0,
+      "double_bookings": 0,
+      "failures": [],
+      "judge": null
+    }
+  ]
+}

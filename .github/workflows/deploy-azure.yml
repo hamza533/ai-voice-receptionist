@@ -1,0 +1,52 @@
+# Production deploy to Azure. Disabled by default: set the repository variable
+# AZURE_DEPLOY_ENABLED=true and the AZURE_* OIDC secrets to turn it on.
+name: Deploy to Azure
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  deploy:
+    if: vars.AZURE_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      TAG: ${{ github.event.release.tag_name || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push images
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          V=${TAG#v}
+          docker build --target runtime -t ghcr.io/$OWNER/ai-voice-receptionist-api:$V .
+          docker build --target agent -t ghcr.io/$OWNER/ai-voice-receptionist-agent:$V .
+          docker push ghcr.io/$OWNER/ai-voice-receptionist-api:$V
+          docker push ghcr.io/$OWNER/ai-voice-receptionist-agent:$V
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Deploy Bicep
+        env:
+          PG_ADMIN_PASSWORD: ${{ secrets.PG_ADMIN_PASSWORD }}
+        run: |
+          V=${TAG#v}
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          az deployment group create \
+            --resource-group "${{ vars.AZURE_RESOURCE_GROUP }}" \
+            --template-file deploy/azure/main.bicep \
+            --parameters imageTag=$V allowedOrigins="${{ vars.ALLOWED_ORIGINS }}" \
+                         registry=ghcr.io/$OWNER postgresAdminPassword="$PG_ADMIN_PASSWORD"

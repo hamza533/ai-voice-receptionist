@@ -1,0 +1,39 @@
+id: book_beard_trim_omar_friday
+category: booking
+goal: Book a beard trim with Omar on Friday.
+persona: Short answers, in a hurry.
+caller:
+  name: Bilal Ahmed
+  phone: '+923004445566'
+  email: bilal.a@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+- book_appointment
+expected:
+  appointments_active: 1
+  outcome: booked
+script:
+- tool: check_availability
+  args:
+    service: Beard trim
+    date_from: friday
+    staff: Omar
+  expect: ok
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Beard trim
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: false
+  expect: needs_confirmation
+- tool: book_appointment
+  args:
+    slot_id: $slot[0]
+    service: Beard trim
+    customer_name: Ayesha Khan
+    email: ayesha.k@example.com
+    caller_confirmed: true
+  expect: ok

@@ -1,0 +1,69 @@
+# Synthetic demo business. No real people or customer data.
+business:
+  name: Luma Hair Studio
+  timezone: Asia/Karachi
+  address: 24 Market Street, Karachi
+  phone: "+1 555 010 0142"
+  website: https://luma-hair.example.com
+  currency: PKR
+  greeting: "Thank you for calling Luma Hair Studio, this is Ava. How can I help you today?"
+  recording_notice: "This call may be recorded and transcribed."
+  voice: Aoede
+  language: en-US
+  handoff_number: ""
+  staff_notify_email: ""
+  email_signature: "Luma Hair Studio · 24 Market Street"
+  extra_instructions: ""
+
+staff:
+  - {name: Sara, title: Senior Stylist, color: "#0f9d8a"}
+  - {name: Omar, title: Barber, color: "#505f7a"}
+
+services:
+  - {name: Haircut, description: "Wash, cut and finish", duration_min: 45, price: 2500, buffer_min: 10, staff: [Sara, Omar]}
+  - {name: Hair colour, description: "Full colour incl. toner and blow-dry", duration_min: 120, price: 9000, buffer_min: 15, staff: [Sara]}
+  - {name: Beard trim, description: "Shape and line-up", duration_min: 20, price: 1000, buffer_min: 5, staff: [Omar]}
+  - {name: Blow-dry and styling, description: "Wash and blow-dry", duration_min: 30, price: 1800, buffer_min: 10, staff: [Sara]}
+  - {name: Kids haircut, description: "Under 12", duration_min: 30, price: 1500, buffer_min: 5, staff: [Sara, Omar]}
+
+opening_hours:   # weekday: 0 = Monday
+  - {weekday: 0, open: "10:00", close: "20:00"}
+  - {weekday: 1, open: "10:00", close: "20:00"}
+  - {weekday: 2, open: "10:00", close: "20:00"}
+  - {weekday: 3, open: "10:00", close: "20:00"}
+  - {weekday: 4, open: "10:00", close: "20:00"}
+  - {weekday: 5, open: "10:00", close: "20:00"}
+
+holidays: []
+
+faqs:
+  - question: Is there parking nearby?
+    answer: Yes, free street parking on Market Street and a paid car park two minutes' walk away behind the bank.
+    tags: parking car location
+  - question: What payment methods do you accept?
+    answer: Cash, all major debit and credit cards, and bank transfer. We don't take cheques.
+    tags: payment pay card cash
+  - question: What is your cancellation policy?
+    answer: Please give us at least 12 hours' notice to cancel or move an appointment. You can call any time and the receptionist will do it for you.
+    tags: cancel cancellation policy notice late fee
+  - question: Do you take walk-ins?
+    answer: We take walk-ins when a stylist is free, but booking ahead guarantees your time.
+    tags: walk-in walk in without appointment
+  - question: Do you cut children's hair?
+    answer: Yes, kids haircuts are for children under 12 and take about 30 minutes.
+    tags: kids children child son daughter
+  - question: Do I need a patch test before colouring?
+    answer: For first-time colour clients we do a quick skin patch test at least 48 hours before the colour appointment. It's free and takes five minutes.
+    tags: colour color patch test allergy dye
+  - question: What happens if I'm running late?
+    answer: Let us know as soon as you can. If you're more than 15 minutes late we may need to shorten the service or move you to the next free time.
+    tags: late running delay
+  - question: Do you sell hair products?
+    answer: Yes, we stock shampoos, conditioners and styling products, and your stylist can recommend what suits your hair.
+    tags: products shampoo buy sell
+  - question: Do you offer gift vouchers?
+    answer: Yes, gift vouchers are available in any amount from PKR 2,000 and are valid for 12 months.
+    tags: gift voucher present card
+  - question: How long does a hair colour take?
+    answer: A full colour takes about two hours including toner and blow-dry.
+    tags: colour color how long duration time

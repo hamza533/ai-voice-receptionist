@@ -1,0 +1,22 @@
+id: ask_for_human_demo
+category: handoff
+goal: Asks to speak to a real person.
+persona: Prefers humans.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- request_human
+expected:
+  messages: 1
+  urgent: true
+  outcome: handed_to_human
+script:
+- tool: request_human
+  args:
+    name: Ayesha Khan
+    reason: Wants to discuss bridal package
+  expect: ok

@@ -1,0 +1,23 @@
+id: late_evening_colour
+category: out_of_hours
+goal: Wants a 2-hour colour starting at 7 PM.
+persona: Works late, asks for after 7.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- check_availability
+expected:
+  appointments_active: 0
+script:
+- tool: check_availability
+  args:
+    service: Hair colour
+    date_from: tomorrow
+    date_to: tomorrow
+    time_of_day: evening
+  expect: ok
+  no_slot_after_local: '18:00'

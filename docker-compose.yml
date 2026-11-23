@@ -1,0 +1,119 @@
+# Local stack: Postgres + migrations/seed + API + worker + dashboard.
+# The voice agent connects to LiveKit Cloud: run it with `make agent-dev`
+# (or `docker compose --profile agent up agent`).
+name: ai-voice-receptionist
+
+x-api-env: &api-env
+  DATABASE_URL: postgresql+psycopg://receptionist:receptionist@db:5432/receptionist
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  SESSION_SECRET: ${SESSION_SECRET:-dev-only-session-secret}
+  ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3010}
+  AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-dev-agent-token}
+  LIVEKIT_URL: ${LIVEKIT_URL:-}
+  LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+  LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+  LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-luma-receptionist}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  LLM_MODEL: ${LLM_MODEL:-gemini-3.8-flash}
+  LLM_FALLBACK_MODELS: ${LLM_FALLBACK_MODELS:-gemini-3.5-flash,gemini-3.1-flash-lite}
+  GOOGLE_SERVICE_ACCOUNT_JSON: ${GOOGLE_SERVICE_ACCOUNT_JSON:-}
+  GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  EMAIL_FROM: ${EMAIL_FROM:-Luma Hair Studio <no-reply@example.com>}
+  STAFF_NOTIFY_EMAIL: ${STAFF_NOTIFY_EMAIL:-}
+  TRANSFER_ENABLED: ${TRANSFER_ENABLED:-false}
+  HANDOFF_NUMBER: ${HANDOFF_NUMBER:-}
+  MAX_CALL_MINUTES: ${MAX_CALL_MINUTES:-10}
+  BOOKING_WINDOW_DAYS: ${BOOKING_WINDOW_DAYS:-30}
+  TRANSCRIPT_RETENTION_DAYS: ${TRANSCRIPT_RETENTION_DAYS:-30}
+  DEMO_MODE: ${DEMO_MODE:-false}
+  DEMO_DAILY_CALLS: ${DEMO_DAILY_CALLS:-20}
+  SENTRY_DSN: ${SENTRY_DSN:-}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+
+services:
+  db:
+    image: postgres:16.6-alpine
+    environment:
+      POSTGRES_USER: receptionist
+      POSTGRES_PASSWORD: receptionist
+      POSTGRES_DB: receptionist
+    ports: ["${DB_PORT:-55432}:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U receptionist -d receptionist"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  init:
+    build: {context: ., target: runtime}
+    image: ai-voice-receptionist-api:dev
+    environment: *api-env
+    command: ["sh", "-c", "alembic upgrade head && python -m app.seed ${SEED_FLAGS:---demo}"]
+    depends_on:
+      db: {condition: service_healthy}
+    restart: "no"
+
+  api:
+    image: ai-voice-receptionist-api:dev
+    environment:
+      <<: *api-env
+      WORKER_MODE: separate
+    ports: ["${API_PORT:-8010}:8000"]
+    depends_on:
+      init: {condition: service_completed_successfully}
+
+  worker:
+    image: ai-voice-receptionist-api:dev
+    environment:
+      <<: *api-env
+      WORKER_MODE: separate
+    command: ["python", "-m", "app.jobs.worker"]
+    stop_grace_period: 30s
+    depends_on:
+      init: {condition: service_completed_successfully}
+    healthcheck:
+      disable: true
+
+  web:
+    build:
+      context: ./web
+      args:
+        API_URL: http://api:8000
+    ports: ["${WEB_PORT:-3010}:3000"]
+    depends_on: [api]
+
+  agent:
+    profiles: [agent]
+    build: {context: ., target: agent}
+    environment:
+      API_URL: http://api:8000
+      AGENT_SERVICE_TOKEN: ${AGENT_SERVICE_TOKEN:-dev-agent-token}
+      LIVEKIT_URL: ${LIVEKIT_URL:-}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:-}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
+      LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-luma-receptionist}
+      GOOGLE_API_KEY: ${GEMINI_API_KEY:-}
+      VOICE_MODEL: ${VOICE_MODEL:-gemini-3.1-flash-live-preview}
+      VOICE_NAME: ${VOICE_NAME:-Aoede}
+    depends_on: [api]
+
+  # Toolbox for `make` targets on machines without Python/uv/Node (e.g. Windows).
+  dev:
+    profiles: [tools]
+    build: {context: ., target: dev}
+    environment:
+      <<: *api-env
+      DATABASE_URL: postgresql+psycopg://receptionist:receptionist@db:5432/receptionist_test
+      TEST_DATABASE_URL: postgresql+psycopg://receptionist:receptionist@db:5432/receptionist_test
+      API_URL: http://api:8000
+    volumes: [".:/src", "/src/web/node_modules", "/src/.venv"]
+    depends_on:
+      db: {condition: service_healthy}
+
+volumes:
+  pgdata:

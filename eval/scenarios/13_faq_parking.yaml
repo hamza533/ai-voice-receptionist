@@ -1,0 +1,21 @@
+id: faq_parking
+category: faq
+goal: 'Ask: Is there anywhere to park?'
+persona: Curious first-time caller.
+caller:
+  name: Ayesha Khan
+  phone: '+923001112233'
+  email: ayesha.k@example.com
+setup: {}
+settings: {}
+expected_tools:
+- answer_faq
+expected:
+  appointments_active: 0
+  outcome: faq_answered
+script:
+- tool: answer_faq
+  args:
+    question: Is there anywhere to park?
+  expect: ok
+  answer_contains: parking

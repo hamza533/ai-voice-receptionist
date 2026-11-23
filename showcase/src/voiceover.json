@@ -1,0 +1,104 @@
+{
+  "n_intro": {
+    "file": "vo/n_intro.wav",
+    "seconds": 3.989,
+    "text": "Meet Receptly: the AI receptionist that never misses a call.",
+    "voice": "Puck"
+  },
+  "n_problem": {
+    "file": "vo/n_problem.wav",
+    "seconds": 5.207,
+    "text": "Busy with a client? Closed for the night? Every unanswered call is a booking you've lost.",
+    "voice": "Puck"
+  },
+  "n_landing": {
+    "file": "vo/n_landing.wav",
+    "seconds": 4.991,
+    "text": "Now Ava answers every call, on your phone line or right from your website. Listen.",
+    "voice": "Puck"
+  },
+  "c1": {
+    "file": "vo/c1.wav",
+    "seconds": 6.66,
+    "text": "Thank you for calling Luma Hair Studio, this is Ava. This call may be recorded and transcribed. How can I help you today?",
+    "voice": "Aoede"
+  },
+  "c2": {
+    "file": "vo/c2.wav",
+    "seconds": 2.92,
+    "text": "Hi! Can I get a haircut with Sara tomorrow afternoon?",
+    "voice": "Puck"
+  },
+  "c3": {
+    "file": "vo/c3.wav",
+    "seconds": 4.66,
+    "text": "Sara has 2:30 PM or 4:00 PM tomorrow. Which works best for you?",
+    "voice": "Aoede"
+  },
+  "c4": {
+    "file": "vo/c4.wav",
+    "seconds": 1.721,
+    "text": "2:30, please.",
+    "voice": "Puck"
+  },
+  "c5": {
+    "file": "vo/c5.wav",
+    "seconds": 6.921,
+    "text": "Lovely \u2014 a haircut with Sara tomorrow at 2:30 PM, for Ayesha Khan. Shall I book it?",
+    "voice": "Aoede"
+  },
+  "c6": {
+    "file": "vo/c6.wav",
+    "seconds": 1.481,
+    "text": "Yes, please!",
+    "voice": "Puck"
+  },
+  "c7": {
+    "file": "vo/c7.wav",
+    "seconds": 4.961,
+    "text": "You're all set! A confirmation email is on its way. Anything else I can help with?",
+    "voice": "Aoede"
+  },
+  "n_booked": {
+    "file": "vo/n_booked.wav",
+    "seconds": 3.914,
+    "text": "It's in Google Calendar instantly, and the confirmation email is already sent.",
+    "voice": "Puck"
+  },
+  "n_overview": {
+    "file": "vo/n_overview.wav",
+    "seconds": 3.396,
+    "text": "Every call, every booking, every result, in one dashboard.",
+    "voice": "Puck"
+  },
+  "n_detail": {
+    "file": "vo/n_detail.wav",
+    "seconds": 4.946,
+    "text": "Open any call for the full transcript, every action Ava took, and an AI summary.",
+    "voice": "Puck"
+  },
+  "n_teach": {
+    "file": "vo/n_teach.wav",
+    "seconds": 4.233,
+    "text": "Teach Ava your prices, hours and FAQs in minutes. No code.",
+    "voice": "Puck"
+  },
+  "n_trust": {
+    "file": "vo/n_trust.wav",
+    "seconds": 5.94,
+    "text": "She only offers times that are really free, never double-books, and hands off to your team whenever a caller asks.",
+    "voice": "Puck"
+  },
+  "n_mobile": {
+    "file": "vo/n_mobile.wav",
+    "seconds": 1.709,
+    "text": "Your front desk, in your pocket.",
+    "voice": "Puck"
+  },
+  "n_outro": {
+    "file": "vo/n_outro.wav",
+    "seconds": 2.207,
+    "text": "Receptly. Never miss a call again.",
+    "voice": "Puck"
+  }
+}

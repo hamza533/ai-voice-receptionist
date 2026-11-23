@@ -1,6 +1,6 @@
 {
   "mode": "tools",
-  "generated_at": "2026-11-21T19:42:00+00:00",
+  "generated_at": "2026-11-23T09:34:15+00:00",
   "scenarios": 30,
   "task_success_rate": 1.0,
   "correct_tool_call_rate": 1.0,

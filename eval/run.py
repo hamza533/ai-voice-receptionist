@@ -378,7 +378,7 @@ def _genai():  # type: ignore[no-untyped-def]
     key = os.environ.get("GEMINI_API_KEY", "")
     if not key:
         sys.exit("GEMINI_API_KEY is required for --mode llm")
-    return genai.Client(api_key=key), types
+    return genai.Client(api_key=key, http_options=types.HttpOptions(api_version="v1beta")), types
 
 
 def _call_with_retry(fn, throttle: Throttle, attempts: int = 6):  # type: ignore[no-untyped-def]

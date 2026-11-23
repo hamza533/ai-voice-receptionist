@@ -6,7 +6,7 @@ import logging
 import uuid
 from collections.abc import Callable
 from datetime import timedelta
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
@@ -60,11 +60,16 @@ def outcome_from_tools(tool_calls: list[ToolCall], caller_turns: int) -> str:
     for tool, outcome in _TOOL_OUTCOME:
         if tool in ok:
             return outcome
-    return "abandoned" if caller_turns <= 1 else "faq_answered"
+    # No action taken: the summary model may refine this (e.g. a question answered from
+    # the instructions); without it the call counts as abandoned.
+    return "abandoned"
 
 
 class CallSummary(BaseModel):
     summary: str = Field(description="2-3 sentence summary for salon staff, no phone/email")
+    outcome: Literal["faq_answered", "abandoned"] = Field(
+        description="faq_answered if the caller's question was answered, else abandoned"
+    )
     sentiment: str = Field(description="positive | neutral | negative")
     follow_up_needed: bool
 
@@ -117,10 +122,18 @@ def handle_post_call(db: Session, settings: Settings, payload: dict[str, Any]) -
         try:
             res = llm.generate_json(prompt, CallSummary, system=SUMMARY_SYSTEM)
             summary = res.value.summary
+            if outcome == "abandoned" and not any(t.result_status == "ok" for t in tool_calls):
+                outcome = res.value.outcome
             record_usage(db, res, purpose="call_summary", call_id=call.id)  # type: ignore[arg-type]
             call.text_tokens = (call.text_tokens or 0) + res.input_tokens + res.output_tokens
             call.est_cost_usd = (call.est_cost_usd or 0) + res.cost_usd
         except LLMUnavailable:
+            summary = None
+        except Exception:
+            # Never lose a call record because the LLM is down: use the rule-based summary.
+            log.exception(
+                "summary generation failed; using fallback", extra={"call_id": str(call.id)}
+            )
             summary = None
     call.summary = summary or _fallback_summary(call, outcome, tool_calls)
     call.outcome = outcome

@@ -52,3 +52,19 @@ Short entries: chose X over Y because Z. This is the "Stack" part of the case st
 - `livekit-api` – minting room-limited tokens in the API (agent dispatch in the token).
 - `@livekit/components-react`, `livekit-client` – web calls in the dashboard (spec).
 - `@playwright/test` – end-to-end tests (CONVENTIONS).
+
+## Found in live voice testing (2026-11-23)
+- **Voice model `gemini-3.1-flash-live-preview` over `gemini-2.5-flash-native-audio`**: measured
+  0.5–0.7 s to first audio vs 1.2–1.3 s, and correct tool-argument names (the 2.5 model sent
+  `date` instead of `date_from`). Still configurable with `VOICE_MODEL`.
+- **Pin the Gemini API to `v1beta`** (`GEMINI_API_VERSION`): the SDK default returns HTTP 404 on
+  the Live WebSocket for current keys.
+- **Recording notice inside the greeting, before the closing question**: the voice model dropped
+  a notice appended after "How can I help?". It is now mid-greeting and repeated as rule 0 of
+  the instructions.
+- **LLM fallback chain** (`LLM_FALLBACK_MODELS`): `gemini-2.5-flash` is retired for new keys and
+  the newest Flash models often return 503 on the free tier; summaries try the next model, 4xx
+  errors are not retried, and a call always gets at least a rule-based summary.
+- **Outcome for calls with no tool action comes from the summary model** (FAQ answered vs
+  abandoned) instead of guessing from the number of caller turns.
+- **Accept ISO datetimes as dates** ("2026-11-24T12:00:00"), which the live model sometimes sends.

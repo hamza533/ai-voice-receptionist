@@ -35,7 +35,9 @@ from agent.api_client import ApiClient
 log = logging.getLogger("agent")
 
 AGENT_NAME = os.environ.get("LIVEKIT_AGENT_NAME", "luma-receptionist")
-VOICE_MODEL = os.environ.get("VOICE_MODEL", "gemini-2.5-flash-native-audio-preview-12-2025")
+VOICE_MODEL = os.environ.get("VOICE_MODEL", "gemini-3.1-flash-live-preview")
+# The SDK default API version 404s on the Live endpoint for current keys; v1beta works.
+GEMINI_API_VERSION = os.environ.get("GEMINI_API_VERSION", "v1beta")
 BUSY_LINE = "Sorry, the receptionist is busy right now. Please try again in a minute. Goodbye."
 
 
@@ -351,7 +353,9 @@ async def entrypoint(ctx: JobContext) -> None:
         # Speak a short busy message with the realtime model, then hang up.
         session: AgentSession = AgentSession(
             llm=google.realtime.RealtimeModel(
-                model=VOICE_MODEL, voice=os.environ.get("VOICE_NAME", "Aoede")
+                model=VOICE_MODEL,
+                voice=os.environ.get("VOICE_NAME", "Aoede"),
+                api_version=GEMINI_API_VERSION,
             )
         )
         await session.start(
@@ -368,10 +372,13 @@ async def entrypoint(ctx: JobContext) -> None:
     state = CallState(start["call_id"])
     started_at = datetime.now(UTC)
     usage = {"audio_in": 0, "audio_out": 0, "text": 0}
+    ttfts_ms: list[int] = []  # model time-to-first-audio per reply (latency fallback)
     user_stopped_at: float | None = None
+    last_user_stop: list[float | None] = [None]  # from ChatMessage metrics (wall clock)
 
     model = google.realtime.RealtimeModel(
         model=VOICE_MODEL,
+        api_version=GEMINI_API_VERSION,
         voice=start.get("voice") or os.environ.get("VOICE_NAME", "Aoede"),
         language=start.get("language") or None,
         temperature=0.6,
@@ -381,6 +388,7 @@ async def entrypoint(ctx: JobContext) -> None:
 
     @session.on("conversation_item_added")
     def _on_item(ev: Any) -> None:
+        nonlocal user_stopped_at
         item = ev.item
         if not isinstance(item, ChatMessage):
             return
@@ -389,12 +397,23 @@ async def entrypoint(ctx: JobContext) -> None:
             return
         speaker = "caller" if item.role == "user" else "agent"
         state.turns.append({"speaker": speaker, "text": text, "ts": datetime.now(UTC).isoformat()})
+        metrics = item.metrics or {}
+        if item.role == "user" and user_stopped_at is None:
+            # Fallback anchor: the moment the caller's turn is committed.
+            user_stopped_at = time.perf_counter()
+        if item.role == "user" and metrics.get("stopped_speaking_at"):
+            last_user_stop[0] = float(metrics["stopped_speaking_at"])
         if item.role == "assistant":
             if item.interrupted:
                 state.interruptions += 1
-            e2e = (item.metrics or {}).get("e2e_latency")
+            e2e = metrics.get("e2e_latency")
+            started = metrics.get("started_speaking_at")
             if e2e and e2e > 0:
                 state.latencies_ms.append(int(e2e * 1000))
+            elif started and last_user_stop[0] and started > last_user_stop[0]:
+                # Response delay: end of the caller's speech -> Ava's first audio.
+                state.latencies_ms.append(int((float(started) - last_user_stop[0]) * 1000))
+            last_user_stop[0] = None
 
     @session.on("user_state_changed")
     def _on_user_state(ev: Any) -> None:
@@ -407,11 +426,11 @@ async def entrypoint(ctx: JobContext) -> None:
         nonlocal user_stopped_at
         # Fallback latency measure when per-turn metrics are unavailable.
         if ev.new_state == "speaking" and user_stopped_at is not None:
-            if not state.latencies_ms or len(state.latencies_ms) < len(
-                [t for t in state.turns if t["speaker"] == "agent"]
-            ):
+            agent_turns = len([t for t in state.turns if t["speaker"] == "agent"])
+            if len(state.latencies_ms) <= agent_turns:
                 state.latencies_ms.append(int((time.perf_counter() - user_stopped_at) * 1000))
             user_stopped_at = None
+        log.info("agent state", extra={"state": ev.new_state})
 
     @session.on("metrics_collected")
     def _on_metrics(ev: Any) -> None:
@@ -420,6 +439,8 @@ async def entrypoint(ctx: JobContext) -> None:
             usage["audio_in"] += m.input_token_details.audio_tokens
             usage["audio_out"] += m.output_token_details.audio_tokens
             usage["text"] += m.input_token_details.text_tokens + m.output_token_details.text_tokens
+            if m.ttft and m.ttft > 0 and not m.cancelled:
+                ttfts_ms.append(int(m.ttft * 1000))
 
     async def _report() -> None:
         if state.ended:
@@ -429,6 +450,7 @@ async def entrypoint(ctx: JobContext) -> None:
             "ended_at": datetime.now(UTC).isoformat(),
             "end_reason": state.end_reason,
             "turns": state.turns,
+            # End of caller speech -> first agent audio, per turn.
             "latency_ms": state.latencies_ms,
             "interruptions": state.interruptions,
             "audio_input_tokens": usage["audio_in"],
@@ -447,7 +469,10 @@ async def entrypoint(ctx: JobContext) -> None:
     # Raw audio is not stored (spec): recording off.
     await session.start(agent=agent, room=ctx.room, record=False)
     await session.generate_reply(
-        instructions=f"Greet the caller with exactly this, then wait: {start['greeting']}"
+        instructions=(
+            "Your reply must be exactly the following text, word for word, with nothing "
+            f"added or left out, then stop and listen: {start['greeting']}"
+        )
     )
 
     max_s = int(start.get("max_call_seconds", 600))

@@ -6,6 +6,7 @@ dashboard changes the next call without redeploying the agent.
 
 from __future__ import annotations
 
+import re
 from datetime import datetime
 
 from sqlalchemy import select
@@ -16,9 +17,19 @@ from app.services.timeutil import speak_date, to_local
 
 
 def greeting_text(biz: BusinessConfig) -> str:
-    greeting = biz.greeting or f"Thanks for calling {biz.name}, this is Ava. How can I help?"
-    notice = biz.recording_notice or "This call may be recorded and transcribed."
-    return f"{greeting} {notice}".strip()
+    """Greeting with the recording notice placed before the closing question.
+
+    Voice models tend to drop a notice appended after "How can I help?", because the turn
+    feels finished; in the middle it is always spoken.
+    """
+    greeting = (
+        biz.greeting or f"Thanks for calling {biz.name}, this is Ava. How can I help?"
+    ).strip()
+    notice = (biz.recording_notice or "This call may be recorded and transcribed.").strip()
+    sentences = re.split(r"(?<=[.!])\s+", greeting)
+    if len(sentences) > 1 and sentences[-1].endswith("?"):
+        return " ".join([*sentences[:-1], notice, sentences[-1]])
+    return f"{greeting} {notice}"
 
 
 def build_instructions(db: Session, now_utc: datetime, max_call_minutes: int) -> str:
@@ -49,6 +60,8 @@ FAQ topics you can look up with answer_faq: {faq_topics}.
 {biz.extra_instructions}
 
 Rules you must always follow:
+0. Open the call with exactly this greeting, word for word, including the recording
+   notice (it is legally required; never shorten or skip it): "{greeting_text(biz)}"
 1. Never invent a time. Only offer times returned by check_availability in this call, and
    book or reschedule only with a slot_id it returned. If a tool says a time is gone,
    apologise and check availability again.

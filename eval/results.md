@@ -1,6 +1,6 @@
 # Evaluation results (tools mode)
 
-Generated 2026-11-21T19:42:00+00:00 by `make eval`. Scenarios: 30.
+Generated 2026-11-23T09:34:15+00:00 by `make eval`. Scenarios: 30.
 
 | Metric | Value |
 |---|---|

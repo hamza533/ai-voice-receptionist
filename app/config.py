@@ -32,9 +32,13 @@ class Settings(BaseSettings):
 
     # Gemini
     gemini_api_key: str = ""
-    voice_model: str = "gemini-2.5-flash-native-audio-preview-09-2025"
+    voice_model: str = "gemini-3.1-flash-live-preview"
     voice_name: str = "Aoede"
-    llm_model: str = "gemini-2.5-flash"
+    llm_model: str = "gemini-3.8-flash"
+    # Tried in order when the primary model is overloaded or unavailable.
+    llm_fallback_models: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["gemini-3.5-flash", "gemini-3.1-flash-lite"]
+    )
     llm_timeout_s: float = 30.0
 
     # Google Calendar
@@ -71,7 +75,7 @@ class Settings(BaseSettings):
     worker_mode: Literal["embedded", "separate", "off"] = "embedded"
     worker_poll_seconds: float = 1.0
 
-    @field_validator("allowed_origins", mode="before")
+    @field_validator("allowed_origins", "llm_fallback_models", mode="before")
     @classmethod
     def _split_origins(cls, v: object) -> object:
         if isinstance(v, str):

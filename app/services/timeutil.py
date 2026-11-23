@@ -67,6 +67,8 @@ class ResolvedDate:
 
 
 _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+# Models sometimes send a full timestamp ("2026-11-24T12:00:00"): use its date part.
+_ISO_DATETIME = re.compile(r"^(\d{4}-\d{2}-\d{2})[t ]\d{2}:\d{2}")
 _IN_N_DAYS = re.compile(r"^in (\d{1,2}) days?$")
 
 
@@ -79,6 +81,8 @@ def resolve_date(phrase: str, tz: str, now: datetime | None = None) -> ResolvedD
     today = local_today(tz, now)
     p = " ".join(phrase.lower().strip().replace(",", " ").split())
 
+    if m := _ISO_DATETIME.match(p):
+        p = m.group(1)
     if _ISO.match(p):
         d = date.fromisoformat(p)
         return ResolvedDate(d, speak_date(d))

@@ -239,6 +239,17 @@ function InCall({ businessName, identity, compact }: { businessName: string; ide
           <span className="tabular-nums text-primary" data-testid="call-timer">{elapsed}</span>
         </span>
         <Orb active speaking={state === "speaking"} />
+        {!isMicrophoneEnabled ? (
+          <button
+            type="button"
+            role="alert"
+            onClick={() => void localParticipant.setMicrophoneEnabled(true)}
+            className="rounded-lg bg-[#fef3c7] px-3 py-2 text-sm font-medium text-[#92400e]"
+            data-testid="mic-off"
+          >
+            Microphone is off — Ava can&apos;t hear you. Click to turn it on.
+          </button>
+        ) : null}
         <div className="h-10 w-48 text-primary">
           {audioTrack ? (
             <BarVisualizer state={state} trackRef={audioTrack} barCount={9} className="h-full w-full [&>span]:bg-primary/80 [&>span]:rounded-full" />

@@ -41,6 +41,7 @@ def _q(**kw) -> SlotQuery:  # type: ignore[no-untyped-def]
 def test_resolve_tomorrow_and_iso() -> None:
     assert resolve_date("tomorrow", TZ, MON_9AM).date == date(2025, 11, 25)
     assert resolve_date("2025-12-01", TZ, MON_9AM).date == date(2025, 12, 1)
+    assert resolve_date("2025-12-01T12:00:00", TZ, MON_9AM).date == date(2025, 12, 1)
 
 
 def test_resolve_weekday_and_ambiguous_next() -> None:
@@ -160,7 +161,7 @@ def test_outcome_precedence() -> None:
         return ToolCall(tool=tool, result_status=status)
 
     assert outcome_from_tools([tc("answer_faq"), tc("book_appointment")], 4) == "booked"
-    assert outcome_from_tools([tc("book_appointment", "unavailable")], 4) == "faq_answered"
+    assert outcome_from_tools([tc("book_appointment", "unavailable")], 4) == "abandoned"
     assert outcome_from_tools([tc("request_human"), tc("book_appointment")], 4) == (
         "handed_to_human"
     )

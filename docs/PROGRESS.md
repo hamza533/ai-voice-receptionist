@@ -52,5 +52,9 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-23 – Claude Code – First live voice tests with LiveKit Cloud + Gemini Live: call connects,
+  Ava greets (with recording notice), hears and answers, call record + AI summary saved. Fixed
+  API-version 404, retired summary model, greeting notice, outcome labels, latency metric;
+  switched to gemini-3.1-flash-live-preview. Added scripts/voice_test.
 - 2026-11-22 – Claude Code – Built the whole MVP: API, agent, dashboard from Stitch design,
   tests, eval, CI/CD, Render + Azure Bicep, docs. Published to GitHub.

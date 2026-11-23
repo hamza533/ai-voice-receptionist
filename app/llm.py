@@ -5,6 +5,7 @@ Switching provider (OpenAI, Azure OpenAI, Vertex AI) only changes this file.
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import time
@@ -17,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.models import LLMUsage
-from app.services.retry import retry_call
+from app.services.retry import PermanentError, retry_call
 
 log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
@@ -62,7 +63,9 @@ class LLM:
 
             self._client = genai.Client(
                 api_key=self.settings.gemini_api_key,
-                http_options=types.HttpOptions(timeout=int(self.settings.llm_timeout_s * 1000)),
+                http_options=types.HttpOptions(
+                    timeout=int(self.settings.llm_timeout_s * 1000), api_version="v1beta"
+                ),
             )
         return self._client
 
@@ -85,15 +88,38 @@ class LLM:
             response_schema=schema,
             temperature=temperature,
         )
+
+        def _call(model: str) -> Any:
+            from google.genai import errors
+
+            try:
+                return client.models.generate_content(model=model, contents=prompt, config=config)
+            except errors.ClientError as exc:
+                # 4xx other than rate limiting will never succeed: don't retry it.
+                if getattr(exc, "code", 0) != 429:
+                    raise PermanentError(str(exc)[:300]) from exc
+                raise
+
+        # Primary model, then fallbacks: free-tier models are regularly "high demand" (503)
+        # or retired for new keys (404), and a busy model must not block call summaries.
+        models = [self.settings.llm_model, *self.settings.llm_fallback_models]
         started = time.perf_counter()
-        resp = retry_call(
-            lambda: client.models.generate_content(
-                model=self.settings.llm_model, contents=prompt, config=config
-            ),
-            what="llm.generate_json",
-            attempts=4,
-            base=1.0,
-        )
+        last: Exception | None = None
+        resp = None
+        used = models[0]
+        for model in dict.fromkeys(m for m in models if m):
+            try:
+                resp = retry_call(
+                    functools.partial(_call, model), what="llm.generate_json", attempts=2, base=1.0
+                )
+                used = model
+                break
+            except Exception as exc:
+                last = exc
+                log.warning("llm model failed, trying next", extra={"model": model})
+        if resp is None:
+            assert last is not None
+            raise last
         latency = int((time.perf_counter() - started) * 1000)
         parsed = resp.parsed if isinstance(resp.parsed, schema) else None
         if parsed is None:
@@ -104,7 +130,7 @@ class LLM:
             input_tokens=int(getattr(usage, "prompt_token_count", 0) or 0),
             output_tokens=int(getattr(usage, "candidates_token_count", 0) or 0),
             latency_ms=latency,
-            model=self.settings.llm_model,
+            model=used,
         )
 
 

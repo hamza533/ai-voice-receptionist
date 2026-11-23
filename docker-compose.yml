@@ -14,7 +14,8 @@ x-api-env: &api-env
   LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
   LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-luma-receptionist}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-  LLM_MODEL: ${LLM_MODEL:-gemini-2.5-flash}
+  LLM_MODEL: ${LLM_MODEL:-gemini-3.8-flash}
+  LLM_FALLBACK_MODELS: ${LLM_FALLBACK_MODELS:-gemini-3.5-flash,gemini-3.1-flash-lite}
   GOOGLE_SERVICE_ACCOUNT_JSON: ${GOOGLE_SERVICE_ACCOUNT_JSON:-}
   GOOGLE_CALENDAR_ID: ${GOOGLE_CALENDAR_ID:-}
   SMTP_HOST: ${SMTP_HOST:-}
@@ -97,7 +98,7 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:-}
       LIVEKIT_AGENT_NAME: ${LIVEKIT_AGENT_NAME:-luma-receptionist}
       GOOGLE_API_KEY: ${GEMINI_API_KEY:-}
-      VOICE_MODEL: ${VOICE_MODEL:-gemini-2.5-flash-native-audio-preview-12-2025}
+      VOICE_MODEL: ${VOICE_MODEL:-gemini-3.1-flash-live-preview}
       VOICE_NAME: ${VOICE_NAME:-Aoede}
     depends_on: [api]
 

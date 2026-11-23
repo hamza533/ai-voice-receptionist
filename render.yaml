@@ -18,6 +18,8 @@ services:
         value: embedded          # the free plan has no background workers
       - key: COOKIE_SECURE
         value: "true"
+      - key: TRUSTED_PROXY_HOPS
+        value: "2"               # Vercel rewrite + Render load balancer
       - key: ALLOWED_ORIGINS
         sync: false              # https://<your-app>.vercel.app
       - key: DATABASE_URL

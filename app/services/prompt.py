@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import FAQ, BusinessConfig, Service, Staff
+from app.services.money import format_money
 from app.services.timeutil import speak_date, to_local
 
 
@@ -38,7 +39,7 @@ def build_instructions(db: Session, now_utc: datetime, max_call_minutes: int) ->
         raise RuntimeError("business config missing")
     local_now = to_local(now_utc, biz.timezone)
     services = ", ".join(
-        f"{s.name} ({s.duration_min} min, {biz.currency} {float(s.price):,.0f})"
+        f"{s.name} ({s.duration_min} min, {format_money(biz.currency, s.price)})"
         for s in db.scalars(select(Service).where(Service.active.is_(True)).order_by(Service.id))
     )
     staff = ", ".join(

@@ -53,6 +53,11 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-23 – Claude Code – Code review + security review of the MVP (security: no high/medium
+  findings). Fixed 9 review findings on fix/review-findings: spoof-proof client IP for rate
+  limits (TRUSTED_PROXY_HOPS), prices keep cents, reschedule/cancel keep the calendar in step
+  with the database on failure, slots tied to the service they were offered for, no wrong-ref
+  fallback, ambiguous service names ask instead of guess. 60 tests, eval 30/30.
 - 2026-11-23 – Claude Code – Voiced showcase (single-take narrator, paced call dialogue), then
   removed all technical details from the video; plain-language call metrics in the dashboard
   (typical/slowest reply, "Actions taken", "Natural voice"). Merged PR #1 into main.

@@ -171,6 +171,16 @@ def booked_intervals(
     return dict(busy)
 
 
+def _our_event_ids(db: Session, ids: set[str]) -> set[str]:
+    """Which of these calendar events we created for our own bookings. Matching on the ids
+    the calendar returned (not on booking times) keeps the query small and still catches a
+    stale copy left behind when a booking moved."""
+    rows = db.scalars(
+        select(Appointment.calendar_event_id).where(Appointment.calendar_event_id.in_(ids))
+    )
+    return {e for e in rows if e}
+
+
 def eligible_staff(service: Service, staff_id: int | None = None) -> list[Staff]:
     staff = [s for s in service.staff if s.active]
     if staff_id is not None:
@@ -209,24 +219,13 @@ def find_slots(
         range_end,
         exclude_appointment_id=exclude_appointment_id,
     )
-    known_event_ids = {
-        e
-        for e in db.scalars(
-            select(Appointment.calendar_event_id).where(
-                Appointment.calendar_event_id.is_not(None),
-                Appointment.start_utc < range_end,
-                Appointment.end_utc > range_start,
-            )
-        )
-        if e
-    }
     cal_busy = staff_busy_intervals(
         calendar,
         staff,
         default_calendar_id=settings.google_calendar_id,
         start=range_start,
         end=range_end,
-        ignore_event_ids=known_event_ids,
+        our_events=lambda ids: _our_event_ids(db, ids),
     )
     for sid, intervals in cal_busy.items():
         busy.setdefault(sid, []).extend(intervals)
@@ -293,20 +292,13 @@ def slot_is_free(
     ).get(staff.id, [])
     if _overlaps(start_utc, occupied_end, busy):
         return False, "already_booked"
-    known = {
-        e
-        for e in db.scalars(
-            select(Appointment.calendar_event_id).where(Appointment.calendar_event_id.is_not(None))
-        )
-        if e
-    }
     cal = staff_busy_intervals(
         calendar,
         [staff],
         default_calendar_id=settings.google_calendar_id,
         start=start_utc - timedelta(hours=1),
         end=occupied_end + timedelta(hours=1),
-        ignore_event_ids=known,
+        our_events=lambda ids: _our_event_ids(db, ids),
     ).get(staff.id, [])
     if _overlaps(start_utc, occupied_end, cal):
         return False, "calendar_busy"

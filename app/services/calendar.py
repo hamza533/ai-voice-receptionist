@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
@@ -103,7 +103,10 @@ class LocalCalendar:
         return event_id
 
     def delete_event(self, calendar_id: str, event_id: str) -> None:
-        self.events.pop(event_id, None)
+        # Event ids are per calendar (as in Google): a reschedule writes the same id to the
+        # new staff calendar before deleting it from the old one.
+        if self.events.get(event_id, {}).get("calendar_id") == calendar_id:
+            del self.events[event_id]
 
 
 class GoogleCalendar:
@@ -233,17 +236,23 @@ def staff_busy_intervals(
     default_calendar_id: str,
     start: datetime,
     end: datetime,
-    ignore_event_ids: Iterable[str] = (),
+    our_events: Callable[[set[str]], set[str]] = lambda ids: set(),
 ) -> dict[int, list[tuple[datetime, datetime]]]:
-    """Busy intervals per staff member from their calendars (DB bookings excluded)."""
-    ignore = set(ignore_event_ids)
+    """Busy intervals per staff member from their calendars (DB bookings excluded).
+
+    `our_events(ids)` returns which of the listed event ids belong to our own bookings; the
+    database already counts those, so their calendar copies are skipped.
+    """
     by_calendar: dict[str, list[Staff]] = {}
     for s in staff:
         by_calendar.setdefault(calendar_for_staff(s, default_calendar_id), []).append(s)
+    listed = {cal_id: calendar.list_busy(cal_id, start, end) for cal_id in by_calendar}
+    all_ids = {ev.id for events in listed.values() for ev in events}
+    ignore = our_events(all_ids) if all_ids else set()
 
     busy: dict[int, list[tuple[datetime, datetime]]] = {}
     for cal_id, members in by_calendar.items():
-        events = calendar.list_busy(cal_id, start, end)
+        events = listed[cal_id]
         shared = len(members) > 1 or not members[0].calendar_id
         for ev in events:
             if ev.id in ignore:

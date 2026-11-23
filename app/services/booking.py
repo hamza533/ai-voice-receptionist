@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
@@ -104,9 +105,9 @@ def book(
     key = booking_key(req.call_id, req.staff_id, req.start_utc)
     existing = db.scalar(select(Appointment).where(Appointment.idempotency_key == key))
     if existing is not None:
-        if existing.status != "cancelled":
-            return existing, False
-        # Booked, cancelled, then booked again in the same call: a genuinely new booking.
+        if existing.status == "booked":
+            return existing, False  # a retried tool call: same booking, same time
+        # Cancelled or moved since (same call): this time slot is a genuinely new booking.
         key = f"{key}:{uuid.uuid4().hex[:8]}"
 
     phone = normalize_phone(req.phone)
@@ -185,10 +186,7 @@ def book(
         db.commit()
     except Exception:
         db.rollback()
-        try:
-            calendar.delete_event(cal_id, event_id)
-        except Exception:
-            log.exception("could not roll back calendar event")
+        _try(calendar.delete_event, cal_id, event_id)
         raise
     return appt, True
 
@@ -232,11 +230,17 @@ def find_bookings(
 
 
 def resolve_one(matches: list[Appointment], appointment_ref: str | None) -> Appointment:
-    if appointment_ref:
-        ref = appointment_ref.strip().lower()
-        chosen = [a for a in matches if str(a.id).startswith(ref)]
-        if len(chosen) == 1:
-            return chosen[0]
+    ref = (appointment_ref or "").strip().lower()
+    if ref:
+        # A reference was given: it must pick exactly one of the caller's bookings. Never fall
+        # back to "their only booking", or a mis-heard reference changes the wrong one.
+        matches = [a for a in matches if str(a.id).startswith(ref)]
+        if not matches:
+            raise BookingError(
+                "not_found",
+                "No booking with that reference matches the caller's details. Check the "
+                "reference, or look the booking up by date without it.",
+            )
     if not matches:
         raise BookingError(
             "not_found",
@@ -282,7 +286,8 @@ def reschedule(
         raise BookingError("slot_unavailable", f"That time is not available ({reason}).")
 
     tz = _tz(db)
-    old_cal = calendar_for_staff(appt.staff, settings.google_calendar_id)
+    event_id = appt.calendar_event_id or event_id_for(appt.idempotency_key)
+    old = _EventState.of(appt, settings, tz)
     new_cal = calendar_for_staff(staff, settings.google_calendar_id)
     appt.staff_id = staff.id
     appt.staff = staff
@@ -295,12 +300,11 @@ def reschedule(
         db.rollback()
         raise BookingError("slot_unavailable", "That time was just taken.") from exc
 
-    event_id = appt.calendar_event_id or event_id_for(appt.idempotency_key)
     summary, desc = _event_text(appt, tz)
     try:
-        if old_cal != new_cal:
-            calendar.delete_event(old_cal, event_id)
-        appt.calendar_event_id = calendar.upsert_event(
+        # Write the new event before removing the old one: a failure part-way must leave
+        # the booking visible in a calendar, never in none.
+        new_event_id = calendar.upsert_event(
             new_cal,
             event_id,
             summary=summary,
@@ -315,8 +319,20 @@ def reschedule(
         log.exception("calendar update failed on reschedule")
         raise BookingError("calendar_error", "The calendar could not be updated.") from exc
 
+    appt.calendar_event_id = new_event_id
     _enqueue_customer_email(db, appt, "rescheduled")
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if old.calendar_id != new_cal:
+            _try(calendar.delete_event, new_cal, event_id)
+        else:
+            old.restore(calendar, event_id)
+        raise
+    if old.calendar_id != new_cal:
+        # The database already holds the new time; a leftover old event only looks busy.
+        _try(calendar.delete_event, old.calendar_id, event_id)
     return appt
 
 
@@ -325,14 +341,69 @@ def cancel(
 ) -> Appointment:
     if appt.status == "cancelled":
         return appt
-    cal_id = calendar_for_staff(appt.staff, settings.google_calendar_id)
-    if appt.calendar_event_id:
+    event_id = appt.calendar_event_id
+    old = _EventState.of(appt, settings, _tz(db))
+    if event_id:
         try:
-            calendar.delete_event(cal_id, appt.calendar_event_id)
+            calendar.delete_event(old.calendar_id, event_id)
         except Exception as exc:
             log.exception("calendar delete failed on cancel")
             raise BookingError("calendar_error", "The calendar could not be updated.") from exc
     appt.status = "cancelled"
     _enqueue_customer_email(db, appt, "cancelled")
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        if event_id:
+            old.restore(calendar, event_id)  # the booking is still active: put it back
+        raise
     return appt
+
+
+@dataclass(frozen=True)
+class _EventState:
+    """An appointment's calendar event as it was, to undo a calendar change when the
+    database commit that should follow it fails."""
+
+    calendar_id: str
+    summary: str
+    description: str
+    start: datetime
+    end: datetime
+    staff_id: int
+    timezone: str
+
+    @classmethod
+    def of(cls, appt: Appointment, settings: Settings, tz: str) -> _EventState:
+        summary, desc = _event_text(appt, tz)
+        return cls(
+            calendar_id=calendar_for_staff(appt.staff, settings.google_calendar_id),
+            summary=summary,
+            description=desc,
+            start=appt.start_utc,
+            end=appt.end_utc,
+            staff_id=appt.staff_id,
+            timezone=tz,
+        )
+
+    def restore(self, calendar: CalendarClient, event_id: str) -> None:
+        _try(
+            calendar.upsert_event,
+            self.calendar_id,
+            event_id,
+            summary=self.summary,
+            description=self.description,
+            start=self.start,
+            end=self.end,
+            staff_id=self.staff_id,
+            timezone=self.timezone,
+        )
+
+
+def _try(fn: Callable[..., object], *args: object, **kwargs: object) -> None:
+    """Best-effort calendar clean-up: log failures, never raise over the original error."""
+    try:
+        fn(*args, **kwargs)
+    except Exception:
+        log.exception("calendar clean-up failed", extra={"op": getattr(fn, "__name__", "")})

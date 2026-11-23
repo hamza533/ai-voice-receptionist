@@ -34,8 +34,9 @@ third-party keys is built, tested and green.
 5. Deploy the demo: Neon (DATABASE_URL), Render (`render.yaml`, DEMO_MODE=true), Vercel
    (`web/`, env `API_URL=https://<render-app>.onrender.com`), LiveKit Cloud agent
    (`lk agent create` with the `agent` Docker target). Set `ALLOWED_ORIGINS` to the Vercel URL.
-6. Showcase video (73 s) and README GIF are in `docs/images/` (built from the running app by
-   `showcase/`). After step 2, add a voice-call clip and draft the Upwork case study.
+6. Showcase video (82 s, voiced, client-friendly: no stack/API names) and README GIF are in
+   `docs/images/` (built from the running app by `showcase/`). Optional: re-record the call
+   dialogue with a female caller voice (`showcase/scripts/voiceover.py`, TTS daily quota).
 
 ## Blockers / open questions
 - LLM-mode eval numbers and voice latency need `GEMINI_API_KEY` and LiveKit keys (not in repo).
@@ -52,6 +53,9 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-23 – Claude Code – Voiced showcase (single-take narrator, paced call dialogue), then
+  removed all technical details from the video; plain-language call metrics in the dashboard
+  (typical/slowest reply, "Actions taken", "Natural voice"). Merged PR #1 into main.
 - 2026-11-23 – Claude Code – First live voice tests with LiveKit Cloud + Gemini Live: call connects,
   Ava greets (with recording notice), hears and answers, call record + AI summary saved. Fixed
   API-version 404, retired summary model, greeting notice, outcome labels, latency metric;

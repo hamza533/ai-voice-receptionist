@@ -104,7 +104,7 @@ export default function OverviewPage() {
           badge={
             data?.median_latency_ms ? (
               <span className="rounded-full bg-surface-container px-2 py-0.5 text-[11px] font-semibold text-[#394761]">
-                {data.median_latency_ms} ms reply
+                {(data.median_latency_ms / 1000).toFixed(1)} s replies
               </span>
             ) : null
           }

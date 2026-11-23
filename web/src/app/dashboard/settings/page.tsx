@@ -88,7 +88,7 @@ export default function SettingsPage() {
       </div>
 
       <fieldset disabled={!isAdmin} className="flex flex-col gap-6">
-        <Section icon={<Bot />} title="Greeting & persona" right={<Pill className="bg-primary-fixed/60 text-[#00201b]">● Gemini Live voice</Pill>}>
+        <Section icon={<Bot />} title="Greeting & persona" right={<Pill className="bg-primary-fixed/60 text-[#00201b]">● Natural voice</Pill>}>
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="greeting">Initial call greeting</Label>

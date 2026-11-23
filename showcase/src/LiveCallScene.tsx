@@ -97,7 +97,7 @@ export function LiveCallScene() {
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
       <div style={{ position: "absolute", left: 120, top: 70 }}>
-        <Title eyebrow="Live call · Gemini Live speech-to-speech" title="A real conversation, booked in seconds" size={52} />
+        <Title eyebrow="Live call" title="A real conversation, booked in seconds" size={52} />
       </div>
       <div
         style={{

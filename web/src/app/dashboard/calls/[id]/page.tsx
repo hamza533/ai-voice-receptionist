@@ -91,13 +91,13 @@ export default function CallDetailPage() {
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Metric icon={<Clock3 className="size-4" />} label="Duration" value={fmtDuration(call.duration_s)} />
-          <Metric icon={<Zap className="size-4" />} label="Reply p50" value={call.latency_p50_ms ? `${call.latency_p50_ms} ms` : "—"} />
-          <Metric icon={<Gauge className="size-4" />} label="Reply p95" value={call.latency_p95_ms ? `${call.latency_p95_ms} ms` : "—"} />
+          <Metric icon={<Zap className="size-4" />} label="Typical reply" value={secs(call.latency_p50_ms)} />
+          <Metric icon={<Gauge className="size-4" />} label="Slowest reply" value={secs(call.latency_p95_ms)} />
           <Metric
             icon={<Wrench className="size-4" />}
-            label="Tool calls"
+            label="Actions"
             value={String(call.tool_calls.length)}
-            hint={call.interruptions ? `${call.interruptions} barge-in${call.interruptions > 1 ? "s" : ""}` : undefined}
+            hint={call.interruptions ? `${call.interruptions} interruption${call.interruptions > 1 ? "s" : ""} handled` : undefined}
           />
         </div>
       </div>
@@ -216,24 +216,24 @@ export default function CallDetailPage() {
           ))}
 
           <div className="surface-card p-5">
-            <h3 className="mb-3 font-semibold">Tool calls</h3>
+            <h3 className="mb-3 font-semibold">Actions taken</h3>
             <ul className="flex flex-col gap-2 text-sm">
               {call.tool_calls.length === 0 ? <li className="text-muted-foreground">None</li> : null}
               {call.tool_calls.map((t) => (
                 <li key={t.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-low px-3 py-2">
-                  <span className="truncate font-mono text-xs">{t.tool}</span>
+                  <span className="truncate text-xs font-medium">{TOOL_LABELS[t.tool] ?? t.tool}</span>
                   <span className="flex shrink-0 items-center gap-2 text-xs">
                     <span className={cn("font-semibold", t.result_status === "ok" ? "text-primary" : "text-[#92400e]")}>
-                      {t.result_status}
+                      {t.result_status === "ok" ? "Done" : t.result_status.replace("_", " ")}
                     </span>
-                    <span className="tabular-nums text-muted-foreground">{t.latency_ms} ms</span>
+
                   </span>
                 </li>
               ))}
             </ul>
             <p className="mt-4 flex items-start gap-2 text-xs text-muted-foreground">
               <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
-              Personal data in tool arguments is redacted. Raw audio is not stored; transcripts are deleted after the retention period.
+              Personal details are hidden in the activity log. Call audio is not stored, and transcripts are deleted after the retention period.
             </p>
           </div>
         </div>
@@ -261,4 +261,8 @@ function Field({ label, value }: { label: string; value: string }) {
       <dd className="mt-0.5 font-semibold">{value}</dd>
     </div>
   );
+}
+
+function secs(ms: number | null) {
+  return ms ? `${(ms / 1000).toFixed(1)} s` : "—";
 }

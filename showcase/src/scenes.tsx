@@ -264,13 +264,13 @@ export function CallDetailScene() {
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
       <div style={{ position: "absolute", left: 180, top: 56 }}>
-        <Title eyebrow="Full transparency" title="Transcript, tools and response time" size={54} />
+        <Title eyebrow="Full transparency" title="Every call, fully transparent" size={54} />
       </div>
       <div style={{ position: "absolute", left: L, top: T + pan * 0 }}>
         <BrowserFrame src="shots/06-call-detail.png" url="luma-hair.receptly.app/dashboard/calls/…" width={W} crop={{ height: 780 }} />
       </div>
-      <Callout {...m(490, 768, 740, 36)} label="Real calendar check, logged" delay={22} side="bottom" />
-      <Callout {...m(1265, 230, 662, 114)} label="Sub-second replies" delay={62} side="bottom" />
+      <Callout {...m(490, 768, 740, 36)} label="Every action, recorded" delay={22} side="bottom" />
+      <Callout {...m(1265, 230, 662, 114)} label="Instant replies" delay={62} side="bottom" />
       <Callout {...m(1346, 402, 610, 212)} label="AI summary for staff" delay={100} side="left" />
     </AbsoluteFill>
   );
@@ -311,15 +311,15 @@ export function GuaranteesScene() {
   const frame = useCurrentFrame();
   const cards = [
     { big: "0", label: "double bookings", sub: "20 callers grab the same slot → exactly 1 booking" },
-    { big: "0", label: "invented times", sub: "Ava can only offer slots the calendar returned" },
-    { big: "30/30", label: "test scenarios passed", sub: "Bookings, changes, FAQs, handoffs, guardrails" },
+    { big: "0", label: "invented times", sub: "Ava only offers times that are actually free" },
+    { big: "✓", label: "private by design", sub: "Callers can only see or change their own appointment" },
     { big: "24/7", label: "always answered", sub: "Nights, weekends, busy hours — plus instant human handoff" },
   ];
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop dark />
       <div style={{ position: "absolute", left: 140, top: 190 }}>
-        <Title dark eyebrow="Built to be trusted" title="Reliable by design" sub="Rules enforced by the system, not just the AI — and verified by an automated test suite." size={68} />
+        <Title dark eyebrow="Built to be trusted" title="Reliable by design" sub="Safeguards on every call keep your calendar accurate and your customers happy." size={68} />
       </div>
       <div style={{ position: "absolute", left: 140, right: 140, top: 560, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 26 }}>
         {cards.map((c, i) => {
@@ -399,7 +399,7 @@ export function OutroScene() {
         </div>
         <div style={{ opacity: t, fontSize: 34, color: "rgba(255,255,255,0.8)" }}>Answers · Books · Hands off — 24/7</div>
         <div style={{ opacity: u, marginTop: 26, display: "flex", gap: 14 }}>
-          {["LiveKit", "Gemini Live", "Google Calendar", "FastAPI", "Next.js"].map((x) => (
+          {["Phone", "Website", "Google Calendar", "Email confirmations"].map((x) => (
             <span key={x} style={{ border: "1px solid rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.85)", borderRadius: 999, padding: "8px 18px", fontSize: 20 }}>
               {x}
             </span>

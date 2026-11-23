@@ -70,6 +70,9 @@ class Settings(BaseSettings):
     demo_daily_calls: int = 20
     demo_max_call_minutes: int = 3
     demo_rate_limit_per_minute: int = 10
+    # Proxies in front of the API that append to X-Forwarded-For (1 = the Next.js web app;
+    # 2 = Vercel web app -> Render API). 0 ignores the header and uses the TCP peer.
+    trusted_proxy_hops: int = 1
 
     # Worker
     worker_mode: Literal["embedded", "separate", "off"] = "embedded"

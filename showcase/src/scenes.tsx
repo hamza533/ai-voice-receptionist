@@ -1,5 +1,5 @@
 import React from "react";
-import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
+import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 
 import { Backdrop, BrandMark, BrowserFrame, Callout, Pill, PhoneFrame, Title, ease, useEnter, useSpring } from "./components";
 import { C, fontFamily } from "./theme";
@@ -56,7 +56,9 @@ export function IntroScene() {
 
 export function ProblemScene() {
   const frame = useCurrentFrame();
-  const swap = interpolate(frame, [70, 90], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+  const { durationInFrames } = useVideoConfig();
+  // Missed calls turn into answered ones only after the narration has made its point.
+  const swap = interpolate(frame, [durationInFrames - 44, durationInFrames - 26], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
   const calls = ["10:42 AM", "1:15 PM", "7:58 PM", "9:20 PM"];
   return (
     <AbsoluteFill style={{ fontFamily }}>
@@ -201,7 +203,7 @@ export function BookedScene() {
         style={{
           position: "absolute",
           right: 110,
-          bottom: 120 - (1 - email) * 40,
+          bottom: 220 - (1 - email) * 40,
           opacity: email,
           width: 520,
           background: "white",
@@ -292,7 +294,7 @@ export function TeachScene() {
       <div style={{ position: "absolute", right: 110, top: 330, opacity: b, transform: `translateY(${(1 - b) * 60}px) rotate(1.5deg)` }}>
         <BrowserFrame src="shots/10-settings.png" url="…/dashboard/settings" width={880} />
       </div>
-      <div style={{ position: "absolute", left: 140, bottom: 70, display: "flex", gap: 16, opacity: b }}>
+      <div style={{ position: "absolute", left: 140, top: 150, display: "flex", gap: 16, opacity: b }}>
         {["FAQs & prices", "Opening hours", "Services & buffers", "Greeting & voice", "Handoff number"].map((t) => (
           <Pill key={t} bg="white" color={C.text} style={{ border: `1px solid ${C.border}`, fontSize: 20, padding: "10px 18px" }}>
             ✓ {t}

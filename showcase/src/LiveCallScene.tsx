@@ -1,40 +1,27 @@
 // The in-call screen of the app (web call), animated to a scripted booking conversation.
 // Same layout and tokens as web/src/components/call/live-call.tsx.
 import React from "react";
-import { AbsoluteFill, interpolate, Sequence, useCurrentFrame } from "remotion";
+import { AbsoluteFill, interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
 import { Audio } from "@remotion/media";
 
 import { Backdrop, Title, ease, useEnter } from "./components";
 import { C, fontFamily } from "./theme";
 
-type Line = { at: number; who: "agent" | "caller"; text: string };
-type Tool = { at: number; done: number; label: string; detail: string };
+import { callTimeline, clip, type CallLine } from "./vo";
 
-const LINES: Line[] = [
-  { at: 18, who: "agent", text: "Thank you for calling Luma Hair Studio, this is Ava. This call may be recorded and transcribed. How can I help you today?" },
-  { at: 110, who: "caller", text: "Hi! Can I get a haircut with Sara tomorrow afternoon?" },
-  { at: 205, who: "agent", text: "Sara has 2:30 PM or 4:00 PM tomorrow. Which works best for you?" },
-  { at: 290, who: "caller", text: "2:30, please." },
-  { at: 330, who: "agent", text: "Lovely — a haircut with Sara tomorrow at 2:30 PM for Ayesha Khan. Shall I book it?" },
-  { at: 420, who: "caller", text: "Yes, please!" },
-  { at: 478, who: "agent", text: "You're all set! A confirmation email is on its way. Anything else I can help with?" },
-];
-
-const TOOLS: Tool[] = [
-  { at: 165, done: 195, label: "Checked availability in Google Calendar", detail: "3 free slots with Sara" },
-  { at: 445, done: 470, label: "Booked the appointment", detail: "Haircut · Sara · 2:30 PM" },
-  { at: 500, done: 520, label: "Sent confirmation email", detail: "To ayesha.k@example.com" },
-];
+type Line = CallLine;
+const { lines: LINES, tools: TOOLS, end: CALL_END } = callTimeline();
+export { CALL_END };
 
 function speakingNow(frame: number) {
-  // Agent "speaks" from a line's start for ~ its length.
-  return LINES.some((l) => l.who === "agent" && frame >= l.at && frame < l.at + 18 + l.text.length * 0.9);
+  return LINES.some((l) => l.who === "agent" && frame >= l.at && frame < l.at + l.frames);
 }
 
 function Bubble({ line }: { line: Line }) {
   const frame = useCurrentFrame();
   const p = interpolate(frame - line.at, [0, 14], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
-  const chars = Math.floor(interpolate(frame - line.at, [0, Math.max(10, line.text.length * 0.7)], [0, line.text.length], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
+  // Text reveals in step with the spoken clip.
+  const chars = Math.floor(interpolate(frame - line.at, [0, Math.max(8, line.frames * 0.92)], [0, line.text.length], { extrapolateLeft: "clamp", extrapolateRight: "clamp" }));
   const caller = line.who === "caller";
   if (frame < line.at) return null;
   return (
@@ -57,7 +44,7 @@ function Bubble({ line }: { line: Line }) {
           color: C.text,
         }}
       >
-        {caller ? line.text : line.text.slice(0, chars)}
+        {line.text.slice(0, chars)}
       </div>
     </div>
   );
@@ -110,7 +97,7 @@ export function LiveCallScene() {
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
       <div style={{ position: "absolute", left: 120, top: 70 }}>
-        <Title eyebrow="Live call · Gemini Live speech-to-speech" title="A real conversation, booked in 20 seconds" size={52} />
+        <Title eyebrow="Live call · Gemini Live speech-to-speech" title="A real conversation, booked in seconds" size={52} />
       </div>
       <div
         style={{
@@ -159,7 +146,7 @@ export function LiveCallScene() {
               {/* Bottom-anchored: new lines push older ones up and out, like a chat. */}
               <div style={{ position: "absolute", left: 26, right: 26, bottom: 22, display: "flex", flexDirection: "column", gap: 16 }}>
                 {LINES.map((l) => (
-                  <Bubble key={l.at} line={l} />
+                  <Bubble key={l.id} line={l} />
                 ))}
               </div>
             </div>
@@ -188,7 +175,13 @@ export function LiveCallScene() {
       </div>
       {TOOLS.slice(1, 2).map((t) => (
         <Sequence key={t.label} from={t.done}>
-          <Audio src="https://remotion.media/ding.wav" volume={0.35} />
+          <Audio src="https://remotion.media/ding.wav" volume={0.3} />
+        </Sequence>
+      ))}
+      {LINES.map((l) => (
+        <Sequence key={`a-${l.id}`} from={l.at} durationInFrames={l.frames + 6}>
+          {/* Caller audio sounds a little "phone-like" next to Ava's studio-clean voice. */}
+          <Audio src={staticFile(clip(l.id).file)} volume={l.who === "caller" ? 0.85 : 1} />
         </Sequence>
       ))}
     </AbsoluteFill>

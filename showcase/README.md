@@ -1,6 +1,6 @@
 # Showcase video (Remotion)
 
-A ~75-second product video built from **real screenshots of the running app** plus an
+A ~98-second voiced product video built from **real screenshots of the running app** plus an
 animated recreation of the in-call screen. Output: `docs/images/showcase.mp4` and
 `docs/images/demo.gif`.
 
@@ -18,9 +18,15 @@ animated recreation of the in-call screen. Output: `docs/images/showcase.mp4` an
      -e BASE=http://web:3000 mcr.microsoft.com/playwright:v1.65.1-noble \
      sh -c "cd /tmp && npm i playwright@1.65.1 && node /sc/capture/capture.mjs /sc/public/shots"
    ```
-3. Render (generates the original music bed in `public/music.wav` first):
+3. Voiceover (Gemini TTS, free tier: paced and cached; verify before rendering):
    ```bash
-   docker run --rm -v "$PWD/showcase:/sc" node:22-bookworm sh /sc/render.sh video
+   uv run python showcase/scripts/voiceover.py && uv run python showcase/scripts/check_voiceover.py
+   ```
+   Clips land in `public/vo/` and timings in `src/voiceover.json`; delete a clip to regenerate
+   it. Send text only to TTS: models read any style instruction out loud.
+4. Render (generates the original music bed in `public/music.wav` first):
+   ```bash
+   docker run --rm -v "$PWD/showcase:/sc" mcr.microsoft.com/playwright:v1.65.1-noble sh /sc/render.sh video
    ```
 
 Preview interactively with `npm i && npx remotion studio`.

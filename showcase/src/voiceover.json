@@ -1,0 +1,104 @@
+{
+  "n_intro": {
+    "file": "vo/n_intro.wav",
+    "seconds": 4.641,
+    "text": "Meet Receptly \u2014 the AI receptionist that never misses a call.",
+    "voice": "Charon"
+  },
+  "n_problem": {
+    "file": "vo/n_problem.wav",
+    "seconds": 7.38,
+    "text": "When you're busy with a client, or the salon is closed, calls go unanswered. And every missed call is a lost booking.",
+    "voice": "Charon"
+  },
+  "n_landing": {
+    "file": "vo/n_landing.wav",
+    "seconds": 5.74,
+    "text": "With Receptly, Ava answers every call \u2014 on your phone line, or right from your website.",
+    "voice": "Charon"
+  },
+  "c1": {
+    "file": "vo/c1.wav",
+    "seconds": 6.66,
+    "text": "Thank you for calling Luma Hair Studio, this is Ava. This call may be recorded and transcribed. How can I help you today?",
+    "voice": "Aoede"
+  },
+  "c2": {
+    "file": "vo/c2.wav",
+    "seconds": 2.92,
+    "text": "Hi! Can I get a haircut with Sara tomorrow afternoon?",
+    "voice": "Puck"
+  },
+  "c3": {
+    "file": "vo/c3.wav",
+    "seconds": 4.66,
+    "text": "Sara has 2:30 PM or 4:00 PM tomorrow. Which works best for you?",
+    "voice": "Aoede"
+  },
+  "c4": {
+    "file": "vo/c4.wav",
+    "seconds": 1.721,
+    "text": "2:30, please.",
+    "voice": "Puck"
+  },
+  "c5": {
+    "file": "vo/c5.wav",
+    "seconds": 6.921,
+    "text": "Lovely \u2014 a haircut with Sara tomorrow at 2:30 PM, for Ayesha Khan. Shall I book it?",
+    "voice": "Aoede"
+  },
+  "c6": {
+    "file": "vo/c6.wav",
+    "seconds": 1.481,
+    "text": "Yes, please!",
+    "voice": "Puck"
+  },
+  "c7": {
+    "file": "vo/c7.wav",
+    "seconds": 4.961,
+    "text": "You're all set! A confirmation email is on its way. Anything else I can help with?",
+    "voice": "Aoede"
+  },
+  "n_booked": {
+    "file": "vo/n_booked.wav",
+    "seconds": 5.601,
+    "text": "The appointment lands straight in Google Calendar, and the customer gets a confirmation email, instantly.",
+    "voice": "Charon"
+  },
+  "n_overview": {
+    "file": "vo/n_overview.wav",
+    "seconds": 6.14,
+    "text": "Your dashboard shows every call, every booking, and how your receptionist is doing.",
+    "voice": "Charon"
+  },
+  "n_detail": {
+    "file": "vo/n_detail.wav",
+    "seconds": 7.34,
+    "text": "Open any call to see the full transcript, every action Ava took, and an AI summary for your team.",
+    "voice": "Charon"
+  },
+  "n_teach": {
+    "file": "vo/n_teach.wav",
+    "seconds": 7.76,
+    "text": "Teach Ava your services, prices, opening hours and FAQs in minutes. No code needed.",
+    "voice": "Charon"
+  },
+  "n_trust": {
+    "file": "vo/n_trust.wav",
+    "seconds": 11.0,
+    "text": "And it's built to be trusted. Ava only offers times that are really free, never double-books, and hands off to a person whenever a caller asks.",
+    "voice": "Charon"
+  },
+  "n_mobile": {
+    "file": "vo/n_mobile.wav",
+    "seconds": 2.521,
+    "text": "Your front desk, in your pocket.",
+    "voice": "Charon"
+  },
+  "n_outro": {
+    "file": "vo/n_outro.wav",
+    "seconds": 2.761,
+    "text": "Receptly. Never miss a call again.",
+    "voice": "Charon"
+  }
+}

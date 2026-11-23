@@ -5,7 +5,8 @@ import { slide } from "@remotion/transitions/slide";
 import React from "react";
 import { AbsoluteFill, interpolate, Sequence, staticFile } from "remotion";
 
-import { LiveCallScene } from "./LiveCallScene";
+import { CALL_END, LiveCallScene } from "./LiveCallScene";
+import { Narration } from "./Narration";
 import {
   BookedScene,
   CallDetailScene,
@@ -18,32 +19,62 @@ import {
   ProblemScene,
   TeachScene,
 } from "./scenes";
+import { vf, type VoId } from "./vo";
 
-export const SCENES: { id: string; frames: number; el: React.ReactNode }[] = [
-  { id: "intro", frames: 110, el: <IntroScene /> },
-  { id: "problem", frames: 150, el: <ProblemScene /> },
-  { id: "landing", frames: 150, el: <LandingScene /> },
-  { id: "call", frames: 600, el: <LiveCallScene /> },
-  { id: "booked", frames: 180, el: <BookedScene /> },
-  { id: "overview", frames: 210, el: <OverviewScene /> },
-  { id: "detail", frames: 240, el: <CallDetailScene /> },
-  { id: "teach", frames: 180, el: <TeachScene /> },
-  { id: "guarantees", frames: 200, el: <GuaranteesScene /> },
-  { id: "mobile", frames: 150, el: <MobileScene /> },
-  { id: "outro", frames: 170, el: <OutroScene /> },
+type SceneDef = { id: string; el: React.ReactNode; vo?: VoId; lead?: number; tail?: number; min?: number };
+
+const DEFS: SceneDef[] = [
+  { id: "intro", el: <IntroScene />, vo: "n_intro", lead: 18, tail: 14, min: 90 },
+  { id: "problem", el: <ProblemScene />, vo: "n_problem", lead: 8, tail: 30 },
+  { id: "landing", el: <LandingScene />, vo: "n_landing", lead: 10, tail: 14 },
+  { id: "call", el: <LiveCallScene />, min: CALL_END },
+  { id: "booked", el: <BookedScene />, vo: "n_booked", lead: 10, tail: 26, min: 140 },
+  { id: "overview", el: <OverviewScene />, vo: "n_overview", lead: 10, tail: 20, min: 150 },
+  { id: "detail", el: <CallDetailScene />, vo: "n_detail", lead: 10, tail: 20, min: 180 },
+  { id: "teach", el: <TeachScene />, vo: "n_teach", lead: 12, tail: 18 },
+  { id: "guarantees", el: <GuaranteesScene />, vo: "n_trust", lead: 18, tail: 20 },
+  { id: "mobile", el: <MobileScene />, vo: "n_mobile", lead: 14, tail: 26, min: 100 },
+  { id: "outro", el: <OutroScene />, vo: "n_outro", lead: 22, tail: 40, min: 120 },
 ];
 
 export const T = 14; // transition length in frames
+
+export const SCENES = DEFS.map((d) => ({
+  ...d,
+  frames: Math.max(d.min ?? 0, d.vo ? (d.lead ?? 0) + vf(d.vo) + (d.tail ?? 0) : 0),
+}));
+
+const STARTS = SCENES.map((_, i) => SCENES.slice(0, i).reduce((s, x) => s + x.frames, 0) - i * T);
 export const TOTAL = SCENES.reduce((s, x) => s + x.frames, 0) - T * (SCENES.length - 1);
 
-export function Showcase() {
-  // Cut points (start frame of each scene after the first) for whoosh sound effects.
-  const cuts: number[] = [];
-  let acc = 0;
-  SCENES.forEach((s, i) => {
-    if (i > 0) cuts.push(acc - T);
-    acc += s.frames - (i > 0 ? T : 0);
+// Spans where someone is speaking: the music ducks under them.
+const VOICE_SPANS: [number, number][] = SCENES.flatMap((s, i) => {
+  if (s.id === "call") return [[STARTS[i], STARTS[i] + s.frames]];
+  if (!s.vo) return [];
+  const a = STARTS[i] + (s.lead ?? 0);
+  return [[a, a + vf(s.vo)]];
+});
+
+function musicVolume(f: number) {
+  const full = 0.5;
+  const ducked = 0.13;
+  const ramp = 10;
+  let v = full;
+  for (const [a, b] of VOICE_SPANS) {
+    const inside = interpolate(f, [a - ramp, a, b, b + ramp], [0, 1, 1, 0], {
+      extrapolateLeft: "clamp",
+      extrapolateRight: "clamp",
+    });
+    v = Math.min(v, full - (full - ducked) * inside);
+  }
+  const fade = interpolate(f, [0, 30, TOTAL - 60, TOTAL], [0, 1, 1, 0], {
+    extrapolateLeft: "clamp",
+    extrapolateRight: "clamp",
   });
+  return v * fade;
+}
+
+export function Showcase() {
   return (
     <AbsoluteFill style={{ background: "#f8f9ff" }}>
       <TransitionSeries>
@@ -51,6 +82,7 @@ export function Showcase() {
           const seq = (
             <TransitionSeries.Sequence key={s.id} name={s.id} durationInFrames={s.frames}>
               {s.el}
+              {s.vo ? <Narration id={s.vo} from={s.lead ?? 0} /> : null}
             </TransitionSeries.Sequence>
           );
           if (i === 0) return [seq];
@@ -61,13 +93,10 @@ export function Showcase() {
           ];
         })}
       </TransitionSeries>
-      <Audio
-        src={staticFile("music.wav")}
-        volume={(f) => interpolate(f, [0, 30, TOTAL - 60, TOTAL], [0, 0.55, 0.55, 0], { extrapolateRight: "clamp" })}
-      />
-      {cuts.map((c, i) => (
+      <Audio src={staticFile("music.wav")} volume={musicVolume} />
+      {STARTS.slice(1).map((c, i) => (
         <Sequence key={c} from={Math.max(0, c)} durationInFrames={30}>
-          <Audio src="https://remotion.media/whoosh.wav" volume={i % 2 ? 0.12 : 0.18} />
+          <Audio src="https://remotion.media/whoosh.wav" volume={i % 2 ? 0.08 : 0.12} />
         </Sequence>
       ))}
     </AbsoluteFill>

@@ -57,7 +57,7 @@ jobs:
         working-directory: web
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -84,7 +84,7 @@ jobs:
           done
           curl -fs localhost:8010/ready
           echo "luma-e2e-owner-pass" | docker compose exec -T api python -m app.cli create-admin --email owner@luma.example.com --name "Luma Owner"
-      - uses: actions/setup-node@v5
+      - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm

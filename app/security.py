@@ -130,11 +130,20 @@ def require_agent(request: Request, settings: Settings = Depends(get_settings)) 
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid service token")
 
 
-def client_ip(request: Request) -> str:
-    fwd = request.headers.get("x-forwarded-for", "")
-    if fwd:
-        return fwd.split(",")[0].strip()
-    return request.client.host if request.client else "unknown"
+def client_ip(request: Request, trusted_hops: int | None = None) -> str:
+    """The caller's IP for rate limits.
+
+    Only the last `TRUSTED_PROXY_HOPS` entries of X-Forwarded-For were written by our own
+    proxies; anything to their left is whatever the client sent, so it is never trusted.
+    (Taking the first entry would let a client pick a new rate-limit bucket per request.)
+    """
+    hops = get_settings().trusted_proxy_hops if trusted_hops is None else trusted_hops
+    peer = request.client.host if request.client else "unknown"
+    chain = [p.strip() for p in request.headers.get("x-forwarded-for", "").split(",")]
+    chain = [p for p in chain if p]
+    if hops <= 0 or not chain:
+        return peer
+    return chain[-hops] if len(chain) >= hops else chain[0]
 
 
 def hit_rate_limit(

@@ -337,3 +337,144 @@ def test_request_human_transfers_when_enabled(db, settings, calendar, monkeypatc
         run_tool(web, "request_human", {"name": "Sana", "callback_number": "+923004445566"}).status
         == "ok"
     )
+
+
+# ---------------------------------------------------------------- review fixes
+
+
+def test_rebooking_a_moved_slot_creates_a_new_booking(db, settings, calendar) -> None:  # type: ignore[no-untyped-def]
+    """Book 2:30, move it, then book 2:30 again in the same call: a second booking, not a
+    replay of the first (which now sits at another time)."""
+    call = _call(db)
+    ctx = _ctx(db, settings, calendar, call)
+    first_slot = _offer(ctx, staff="Sara")[0]
+    assert _book(ctx, first_slot).status == "ok"
+    new_slot = _offer(ctx, when="wednesday", staff="Sara")[0]
+    moved = run_tool(
+        ctx,
+        "reschedule_appointment",
+        {
+            "contact": "ayesha.k@example.com",
+            "date": "tomorrow",
+            "new_slot_id": new_slot["slot_id"],
+            "caller_confirmed": True,
+        },
+    )
+    assert moved.status == "ok", moved.message
+    _offer(ctx, staff="Sara")
+    again = _book(ctx, first_slot, customer_name="Sana Khan", email="sana@example.com")
+    assert again.status == "ok", again.message
+    assert again.data["already_existed"] is False
+    assert again.data["start_utc"] == first_slot["start_utc"]
+    assert db.scalar(select(func.count(Appointment.id))) == 2
+
+
+def test_slot_offered_for_one_service_cannot_be_booked_for_another(db, settings, calendar) -> None:  # type: ignore[no-untyped-def]
+    ctx = _ctx(db, settings, calendar, _call(db))
+    trim_slot = _offer(ctx, service="Haircut", staff="Sara")[0]
+    res = _book(ctx, trim_slot, service="Hair colour")
+    assert res.status == "invalid"
+    assert "offered for Haircut" in res.message
+    assert db.scalar(select(func.count(Appointment.id))) == 0
+    # A loosely named service still books the service the time was offered for.
+    assert _book(ctx, trim_slot, service="haircut please").status == "ok"
+
+
+def test_wrong_appointment_ref_never_falls_back_to_another_booking(db, settings, calendar) -> None:  # type: ignore[no-untyped-def]
+    ctx = _ctx(db, settings, calendar, _call(db))
+    assert _book(ctx, _offer(ctx)[0]).status == "ok"
+    res = run_tool(
+        ctx,
+        "cancel_appointment",
+        {
+            "contact": "ayesha.k@example.com",
+            "date": "tomorrow",
+            "appointment_ref": "ffffffff",
+            "caller_confirmed": True,
+        },
+    )
+    assert res.status == "not_found"
+    assert db.scalar(select(Appointment)).status == "booked"
+
+
+class _FlakyCalendar(LocalCalendar):
+    fail_upsert = False
+
+    def upsert_event(self, calendar_id: str, event_id: str, **kw) -> str:  # type: ignore[no-untyped-def, override]
+        if self.fail_upsert:
+            raise RuntimeError("calendar down")
+        return super().upsert_event(calendar_id, event_id, **kw)
+
+
+def _separate_calendars(db) -> None:  # type: ignore[no-untyped-def]
+    from app.models import Staff
+
+    for s in db.scalars(select(Staff)):
+        s.calendar_id = f"{s.name.lower()}@cal"
+    db.commit()
+
+
+def test_failed_move_to_another_calendar_keeps_the_original_event(db, settings) -> None:  # type: ignore[no-untyped-def]
+    _separate_calendars(db)
+    calendar = _FlakyCalendar()
+    ctx = _ctx(db, settings, calendar, _call(db))
+    assert _book(ctx, _offer(ctx, staff="Omar")[0]).status == "ok"
+    appt = db.scalar(select(Appointment))
+    event_id, original_start = appt.calendar_event_id, appt.start_utc
+    assert calendar.events[event_id]["calendar_id"] == "omar@cal"
+
+    sara_slot = _offer(ctx, when="wednesday", staff="Sara")[0]
+    move = {
+        "contact": "ayesha.k@example.com",
+        "date": "tomorrow",
+        "new_slot_id": sara_slot["slot_id"],
+        "caller_confirmed": True,
+    }
+    calendar.fail_upsert = True
+    assert run_tool(ctx, "reschedule_appointment", move).status == "error"
+    db.expire_all()
+    assert db.scalar(select(Appointment)).start_utc == original_start
+    assert calendar.events[event_id]["calendar_id"] == "omar@cal"  # still on Omar's calendar
+
+    calendar.fail_upsert = False
+    assert run_tool(ctx, "reschedule_appointment", move).status == "ok"
+    assert calendar.events[event_id]["calendar_id"] == "sara@cal"
+
+
+def test_cancel_restores_event_if_commit_fails(db, settings, calendar, monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    ctx = _ctx(db, settings, calendar, _call(db))
+    assert _book(ctx, _offer(ctx)[0]).status == "ok"
+    appt = db.scalar(select(Appointment))
+    event_id = appt.calendar_event_id
+
+    def broken_commit() -> None:
+        raise RuntimeError("database went away")
+
+    monkeypatch.setattr(db, "commit", broken_commit)
+    with pytest.raises(RuntimeError):
+        booking_svc.cancel(db, calendar, settings, appt)
+    monkeypatch.undo()
+    assert event_id in calendar.events
+    db.expire_all()
+    assert db.scalar(select(Appointment)).status == "booked"
+
+
+def test_stale_copy_of_our_own_event_does_not_block_a_slot(db, settings, calendar) -> None:  # type: ignore[no-untyped-def]
+    """A booking that moved can leave its old event behind (clean-up failed): the database
+    is the source of truth, so that leftover must not hide the old time."""
+    from app.services.calendar import BusyEvent
+
+    ctx = _ctx(db, settings, calendar, _call(db))
+    slot = _offer(ctx, staff="Sara")[0]
+    assert _book(ctx, slot).status == "ok"
+    appt = db.scalar(select(Appointment))
+    start = datetime.fromisoformat(slot["start_utc"])
+    calendar.external.append(
+        ("", BusyEvent(appt.calendar_event_id, start, start + timedelta(minutes=45), appt.staff_id))
+    )
+    later = datetime.fromisoformat(_offer(ctx, when="wednesday", staff="Sara")[0]["start_utc"])
+    booking_svc.reschedule(
+        db, calendar, settings, appt, new_start_utc=later, new_staff_id=None, now_utc=NOW
+    )
+    offered = [s["slot_id"] for s in _offer(ctx, staff="Sara")]
+    assert slot["slot_id"] in offered

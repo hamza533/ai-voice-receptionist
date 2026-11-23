@@ -29,6 +29,7 @@ from app.models import FAQ, BusinessConfig, Call, Message, OpeningHours, Service
 from app.services import booking as booking_svc
 from app.services.availability import find_slots
 from app.services.calendar import CalendarClient
+from app.services.money import format_money
 from app.services.privacy import normalize_email, normalize_phone, redact
 from app.services.timeutil import WEEKDAYS, ResolvedDate, resolve_date, speak_time, utcnow
 
@@ -150,17 +151,29 @@ class ToolContext:
         return self.biz.timezone
 
     def money(self, amount: object) -> str:
-        return f"{self.biz.currency} {float(str(amount)):,.0f}"
+        return format_money(self.biz.currency, amount)
 
 
 def _match_name(name: str, options: list[str]) -> str | None:
+    """Resolve what the caller said to one option, or None when it is unclear.
+
+    Exact match first; then the most specific option named inside the phrase ("kids haircut
+    please" -> "Kids haircut", not "Haircut"); then a phrase that is part of exactly one
+    option ("colour" -> "Hair colour"). A phrase that fits several options ("cut") is
+    ambiguous: returning None makes the agent ask instead of guessing.
+    """
     lowered = {o.lower(): o for o in options}
     key = name.strip().lower()
     if key in lowered:
         return lowered[key]
-    for low, orig in lowered.items():
-        if key in low or low in key:
-            return orig
+    named = sorted((low for low in lowered if low in key), key=len, reverse=True)
+    if named and (len(named) == 1 or len(named[0]) > len(named[1])):
+        return lowered[named[0]]
+    if named:
+        return None
+    within = [low for low in lowered if key in low]
+    if within:
+        return lowered[within[0]] if len(within) == 1 else None
     close = difflib.get_close_matches(key, list(lowered), n=1, cutoff=0.6)
     return lowered[close[0]] if close else None
 
@@ -183,9 +196,11 @@ def _parse_slot(slot_id: str) -> tuple[int, datetime]:
     return int(staff_part), start
 
 
-def _offered_in_call(ctx: ToolContext, slot_id: str) -> bool:
+def _offers(ctx: ToolContext, slot_id: str) -> list[int | None] | None:
+    """Service ids this slot was offered for by check_availability in this call (None in
+    the list = an offer recorded without a service id). None = never offered."""
     if ctx.call is None:
-        return False
+        return None
     rows = ctx.db.scalars(
         select(ToolCall).where(
             ToolCall.call_id == ctx.call.id,
@@ -193,7 +208,34 @@ def _offered_in_call(ctx: ToolContext, slot_id: str) -> bool:
             ToolCall.result_status == "ok",
         )
     )
-    return any(slot_id in (r.result_data or {}).get("slot_ids", []) for r in rows)
+    found = [
+        (r.result_data or {}).get("service_id")
+        for r in rows
+        if slot_id in (r.result_data or {}).get("slot_ids", [])
+    ]
+    return found or None
+
+
+def _service_for_offer(
+    ctx: ToolContext, offered: list[int | None], requested: str
+) -> Service | str:
+    """The service to book a slot for, or the reason it can't be: a slot offered for one
+    service (say a 30-minute trim) must not be booked for another (a 2-hour colour)."""
+    service = _find_service(ctx, requested)
+    if service is not None and (service.id in offered or None in offered):
+        return service
+    known = [s for s in offered if s is not None]
+    if service is None and len(set(known)) == 1:
+        offered_service = ctx.db.get(Service, known[0])
+        if offered_service is not None:
+            return offered_service
+    if service is None:
+        return "Unknown service."
+    names = [s.name for s in (ctx.db.get(Service, i) for i in set(known)) if s]
+    return (
+        f"That time was offered for {' / '.join(names)}, not {service.name}. Check "
+        f"availability for {service.name} and offer only the returned times."
+    )
 
 
 def _resolve(ctx: ToolContext, phrase: str) -> ResolvedDate:
@@ -400,6 +442,7 @@ def check_availability(ctx: ToolContext, args: AvailabilityIn) -> ToolResult:
         message=message,
         data={
             "service": service.name,
+            "service_id": service.id,
             "duration_min": service.duration_min,
             "price": ctx.money(service.price),
             "resolved_date": start.as_dict(),
@@ -419,15 +462,16 @@ def _readback(
 
 
 def book_appointment(ctx: ToolContext, args: BookIn) -> ToolResult:
-    if not _offered_in_call(ctx, args.slot_id):
+    offered = _offers(ctx, args.slot_id)
+    if offered is None:
         return ToolResult(
             status="invalid",
             message="That slot was not offered by check_availability in this call. Check "
             "availability first and offer only the returned times.",
         )
-    service = _find_service(ctx, args.service)
-    if service is None:
-        return ToolResult(status="invalid", message="Unknown service.")
+    service = _service_for_offer(ctx, offered, args.service)
+    if isinstance(service, str):
+        return ToolResult(status="invalid", message=service)
     staff_id, start = _parse_slot(args.slot_id)
     staff = ctx.db.get(Staff, staff_id)
     if staff is None:
@@ -522,11 +566,13 @@ def reschedule_appointment(ctx: ToolContext, args: RescheduleIn) -> ToolResult:
     err, appt = _find(ctx, args)
     if err:
         return err
-    if not _offered_in_call(ctx, args.new_slot_id):
+    offered = _offers(ctx, args.new_slot_id)
+    if offered is None or not (appt.service_id in offered or None in offered):
         return ToolResult(
             status="invalid",
-            message="The new time was not offered by check_availability in this call. Check "
-            "availability for the new date first.",
+            message=f"The new time was not offered for {appt.service.name} by "
+            "check_availability in this call. Check availability for that service on the new "
+            "date first.",
             data={
                 "current": {
                     "service": appt.service.name,
@@ -726,6 +772,7 @@ def _record(
     result_data: dict[str, Any] = {}
     if tool == "check_availability" and result.status == "ok":
         result_data = {
+            "service_id": result.data.get("service_id"),
             "slot_ids": result.data.get("slot_ids", []),
             "spoken": [s["spoken"] for s in result.data.get("slots", [])],
         }

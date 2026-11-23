@@ -186,3 +186,52 @@ def test_retry_call_retries_then_raises() -> None:
             sleep=lambda _: None,
         )
     assert 0 <= backoff_delay(10, base=0.5, cap=8) <= 8
+
+
+# ---------------------------------------------------------------- review fixes
+
+
+def test_prices_keep_their_cents() -> None:
+    from decimal import Decimal
+
+    from app.services.money import format_money
+
+    assert format_money("PKR", Decimal("2500.00")) == "PKR 2,500"
+    assert format_money("GBP", Decimal("12.50")) == "GBP 12.50"
+    assert format_money("USD", "9.99") == "USD 9.99"
+
+
+def _request(xff: str | None, peer: str = "10.0.0.5"):  # type: ignore[no-untyped-def]
+    from starlette.requests import Request
+
+    headers = [(b"x-forwarded-for", xff.encode())] if xff is not None else []
+    return Request({"type": "http", "headers": headers, "client": (peer, 1234)})
+
+
+def test_client_ip_ignores_what_the_client_puts_in_forwarded_for() -> None:
+    from app.security import client_ip
+
+    # Client sent a fake entry; our one proxy appended the real address.
+    assert client_ip(_request("6.6.6.6, 203.0.113.7"), trusted_hops=1) == "203.0.113.7"
+    assert client_ip(_request("6.6.6.6, 203.0.113.7, 76.76.21.1"), trusted_hops=2) == "203.0.113.7"
+    assert client_ip(_request("6.6.6.6"), trusted_hops=0) == "10.0.0.5"
+    assert client_ip(_request(None), trusted_hops=1) == "10.0.0.5"
+
+
+@pytest.mark.parametrize(
+    ("said", "expected"),
+    [
+        ("Haircut", "Haircut"),
+        ("a haircut please", "Haircut"),
+        ("kids haircut for my son", "Kids haircut"),
+        ("colour", "Hair colour"),
+        ("cut", None),  # Haircut or Kids haircut: ask, don't guess
+        ("beard", "Beard trim"),
+        ("haircutt", "Haircut"),
+    ],
+)
+def test_service_names_resolve_or_stay_ambiguous(said: str, expected: str | None) -> None:
+    from app.services.tools import _match_name
+
+    options = ["Haircut", "Hair colour", "Beard trim", "Blow-dry and styling", "Kids haircut"]
+    assert _match_name(said, options) == expected

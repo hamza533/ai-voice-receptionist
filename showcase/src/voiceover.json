@@ -1,21 +1,21 @@
 {
   "n_intro": {
     "file": "vo/n_intro.wav",
-    "seconds": 4.641,
-    "text": "Meet Receptly \u2014 the AI receptionist that never misses a call.",
-    "voice": "Charon"
+    "seconds": 3.989,
+    "text": "Meet Receptly: the AI receptionist that never misses a call.",
+    "voice": "Puck"
   },
   "n_problem": {
     "file": "vo/n_problem.wav",
-    "seconds": 7.38,
-    "text": "When you're busy with a client, or the salon is closed, calls go unanswered. And every missed call is a lost booking.",
-    "voice": "Charon"
+    "seconds": 5.207,
+    "text": "Busy with a client? Closed for the night? Every unanswered call is a booking you've lost.",
+    "voice": "Puck"
   },
   "n_landing": {
     "file": "vo/n_landing.wav",
-    "seconds": 5.74,
-    "text": "With Receptly, Ava answers every call \u2014 on your phone line, or right from your website.",
-    "voice": "Charon"
+    "seconds": 4.991,
+    "text": "Now Ava answers every call, on your phone line or right from your website. Listen.",
+    "voice": "Puck"
   },
   "c1": {
     "file": "vo/c1.wav",
@@ -61,44 +61,44 @@
   },
   "n_booked": {
     "file": "vo/n_booked.wav",
-    "seconds": 5.601,
-    "text": "The appointment lands straight in Google Calendar, and the customer gets a confirmation email, instantly.",
-    "voice": "Charon"
+    "seconds": 3.914,
+    "text": "It's in Google Calendar instantly, and the confirmation email is already sent.",
+    "voice": "Puck"
   },
   "n_overview": {
     "file": "vo/n_overview.wav",
-    "seconds": 6.14,
-    "text": "Your dashboard shows every call, every booking, and how your receptionist is doing.",
-    "voice": "Charon"
+    "seconds": 3.396,
+    "text": "Every call, every booking, every result, in one dashboard.",
+    "voice": "Puck"
   },
   "n_detail": {
     "file": "vo/n_detail.wav",
-    "seconds": 7.34,
-    "text": "Open any call to see the full transcript, every action Ava took, and an AI summary for your team.",
-    "voice": "Charon"
+    "seconds": 4.946,
+    "text": "Open any call for the full transcript, every action Ava took, and an AI summary.",
+    "voice": "Puck"
   },
   "n_teach": {
     "file": "vo/n_teach.wav",
-    "seconds": 7.76,
-    "text": "Teach Ava your services, prices, opening hours and FAQs in minutes. No code needed.",
-    "voice": "Charon"
+    "seconds": 4.233,
+    "text": "Teach Ava your prices, hours and FAQs in minutes. No code.",
+    "voice": "Puck"
   },
   "n_trust": {
     "file": "vo/n_trust.wav",
-    "seconds": 11.0,
-    "text": "And it's built to be trusted. Ava only offers times that are really free, never double-books, and hands off to a person whenever a caller asks.",
-    "voice": "Charon"
+    "seconds": 5.94,
+    "text": "She only offers times that are really free, never double-books, and hands off to your team whenever a caller asks.",
+    "voice": "Puck"
   },
   "n_mobile": {
     "file": "vo/n_mobile.wav",
-    "seconds": 2.521,
+    "seconds": 1.709,
     "text": "Your front desk, in your pocket.",
-    "voice": "Charon"
+    "voice": "Puck"
   },
   "n_outro": {
     "file": "vo/n_outro.wav",
-    "seconds": 2.761,
+    "seconds": 2.207,
     "text": "Receptly. Never miss a call again.",
-    "voice": "Charon"
+    "voice": "Puck"
   }
 }

@@ -13,7 +13,7 @@ export function clip(id: VoId): Clip {
 }
 
 /** Narration plays slightly faster than recorded (tighter pacing); dialogue stays natural. */
-export const NARRATION_RATE = 1.06;
+export const NARRATION_RATE = 1.0;
 
 export function rate(id: VoId): number {
   return id.startsWith("n_") ? NARRATION_RATE : 1;

@@ -246,8 +246,8 @@ export function OverviewScene() {
       <div style={{ position: "absolute", left: L, top: T, transform: `scale(${zoom})`, transformOrigin: "50% 0%" }}>
         <BrowserFrame src="shots/04-overview.png" url="luma-hair.receptly.app/dashboard" width={W} crop={{ height: 860 }} />
       </div>
-      <Callout {...m(795, 213, 371, 213)} label="Appointments booked by AI" delay={40} side="bottom" />
-      <Callout {...m(1310, 720, 645, 420)} label="Every call summarised" delay={110} side="top" />
+      <Callout {...m(795, 213, 371, 213)} label="Appointments booked by AI" delay={24} side="bottom" />
+      <Callout {...m(1310, 720, 645, 420)} label="Every call summarised" delay={70} side="top" />
     </AbsoluteFill>
   );
 }
@@ -269,9 +269,9 @@ export function CallDetailScene() {
       <div style={{ position: "absolute", left: L, top: T + pan * 0 }}>
         <BrowserFrame src="shots/06-call-detail.png" url="luma-hair.receptly.app/dashboard/calls/…" width={W} crop={{ height: 780 }} />
       </div>
-      <Callout {...m(490, 768, 740, 36)} label="Real calendar check, logged" delay={36} side="bottom" />
-      <Callout {...m(1265, 230, 662, 114)} label="Sub-second replies" delay={96} side="bottom" />
-      <Callout {...m(1346, 402, 610, 212)} label="AI summary for staff" delay={156} side="left" />
+      <Callout {...m(490, 768, 740, 36)} label="Real calendar check, logged" delay={22} side="bottom" />
+      <Callout {...m(1265, 230, 662, 114)} label="Sub-second replies" delay={62} side="bottom" />
+      <Callout {...m(1346, 402, 610, 212)} label="AI summary for staff" delay={100} side="left" />
     </AbsoluteFill>
   );
 }

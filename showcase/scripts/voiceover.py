@@ -1,16 +1,22 @@
 """Generate the showcase voiceover with Gemini TTS.
 
-Writes public/vo/<id>.wav for every line and src/voiceover.json with durations, which the
-Remotion composition uses to time scenes, captions and the call transcript.
+Two takes, for consistent tone and natural rhythm:
+  - the whole narration in ONE request (one voice, one read),
+  - the whole call as ONE two-speaker request (Ava + the caller),
+then each take is split into lines at its longest pauses.
 
-Free-tier friendly: lines already on disk are reused, requests are paced (3/min), and on a
-quota error the next TTS model is tried (each model has its own daily quota).
+Writes public/vo/<id>.wav and src/voiceover.json (durations), which the Remotion
+composition uses to time scenes, captions and the call transcript.
+Free-tier friendly: 2 requests; existing takes are reused (delete public/vo/_*.wav to redo).
+Send text only: TTS models read any style instruction out loud.
 
     GEMINI_API_KEY=... python scripts/voiceover.py
 """
 
 from __future__ import annotations
 
+import array
+import itertools
 import json
 import os
 import sys
@@ -26,190 +32,191 @@ OUT = ROOT / "public" / "vo"
 MANIFEST = ROOT / "src" / "voiceover.json"
 RATE = 24000
 MODELS = [
+    "gemini-2.5-pro-preview-tts",
     "gemini-3.8-flash-tts",
     "gemini-3.1-flash-tts-preview",
+    "gemini-2.5-flash-preview-tts",
     "gemini-3.8-flash-lite-tts",
-    "gemini-2.5-pro-preview-tts",
 ]
 
-NARRATOR = ("Charon", "Read this as a warm, confident, unhurried product-video narrator:")
-AVA = ("Aoede", "Say this as Ava, a friendly, upbeat hair-salon receptionist on the phone:")
-CALLER = ("Puck", "Say this as a relaxed, friendly customer calling a hair salon:")
+NARRATOR_VOICE = "Puck"  # upbeat
+AVA_VOICE = "Aoede"  # the receptionist's voice in the product
+CALLER_VOICE = "Leda"  # Ayesha, the caller
 
-LINES: list[tuple[str, tuple[str, str], str]] = [
-    ("n_intro", NARRATOR, "Meet Receptly — the AI receptionist that never misses a call."),
+NARRATION: list[tuple[str, str]] = [
+    ("n_intro", "Meet Receptly: the AI receptionist that never misses a call."),
     (
         "n_problem",
-        NARRATOR,
-        "When you're busy with a client, or the salon is closed, calls go unanswered. "
-        "And every missed call is a lost booking.",
+        "Busy with a client? Closed for the night? Every unanswered call is a booking you've lost.",
     ),
     (
         "n_landing",
-        NARRATOR,
-        "With Receptly, Ava answers every call — on your phone line, or right from your website.",
+        "Now Ava answers every call, on your phone line or right from your website. Listen.",
     ),
+    ("n_booked", "It's in Google Calendar instantly, and the confirmation email is already sent."),
+    ("n_overview", "Every call, every booking, every result, in one dashboard."),
+    (
+        "n_detail",
+        "Open any call for the full transcript, every action Ava took, and an AI summary.",
+    ),
+    ("n_teach", "Teach Ava your prices, hours and FAQs in minutes. No code."),
+    (
+        "n_trust",
+        "She only offers times that are really free, never double-books, and hands off to "
+        "your team whenever a caller asks.",
+    ),
+    ("n_mobile", "Your front desk, in your pocket."),
+    ("n_outro", "Receptly. Never miss a call again."),
+]
+
+DIALOGUE: list[tuple[str, str, str]] = [
     (
         "c1",
-        AVA,
+        "Ava",
         "Thank you for calling Luma Hair Studio, this is Ava. This call may be recorded "
         "and transcribed. How can I help you today?",
     ),
-    ("c2", CALLER, "Hi! Can I get a haircut with Sara tomorrow afternoon?"),
-    ("c3", AVA, "Sara has 2:30 PM or 4:00 PM tomorrow. Which works best for you?"),
-    ("c4", CALLER, "2:30, please."),
+    ("c2", "Ayesha", "Hi! Can I get a haircut with Sara tomorrow afternoon?"),
+    ("c3", "Ava", "Sara's free at 2:30 or 4 tomorrow. Which suits you best?"),
+    ("c4", "Ayesha", "2:30, please."),
     (
         "c5",
-        AVA,
-        "Lovely — a haircut with Sara tomorrow at 2:30 PM, for Ayesha Khan. Shall I book it?",
+        "Ava",
+        "Perfect. A haircut with Sara, tomorrow at 2:30, for Ayesha Khan. Shall I book it?",
     ),
-    ("c6", CALLER, "Yes, please!"),
-    (
-        "c7",
-        AVA,
-        "You're all set! A confirmation email is on its way. Anything else I can help with?",
-    ),
-    (
-        "n_booked",
-        NARRATOR,
-        "The appointment lands straight in Google Calendar, and the customer gets a "
-        "confirmation email, instantly.",
-    ),
-    (
-        "n_overview",
-        NARRATOR,
-        "Your dashboard shows every call, every booking, and how your receptionist is doing.",
-    ),
-    (
-        "n_detail",
-        NARRATOR,
-        "Open any call to see the full transcript, every action Ava took, and an AI summary "
-        "for your team.",
-    ),
-    (
-        "n_teach",
-        NARRATOR,
-        "Teach Ava your services, prices, opening hours and FAQs in minutes. No code needed.",
-    ),
-    (
-        "n_trust",
-        NARRATOR,
-        "And it's built to be trusted. Ava only offers times that are really free, never "
-        "double-books, and hands off to a person whenever a caller asks.",
-    ),
-    ("n_mobile", NARRATOR, "Your front desk, in your pocket."),
-    ("n_outro", NARRATOR, "Receptly. Never miss a call again."),
+    ("c6", "Ayesha", "Yes, please!"),
+    ("c7", "Ava", "Done! Your confirmation email is on its way. Anything else I can help with?"),
 ]
 
 
-def synth(client: genai.Client, voice: str, style: str, text: str) -> bytes:
+def request(client: genai.Client, contents: str, speech: types.SpeechConfig) -> bytes:
     last: Exception | None = None
     for model in MODELS:
         for attempt in range(3):
             try:
                 resp = client.models.generate_content(
                     model=model,
-                    # Text only: TTS models read any style instruction out loud.
-                    contents=text,
+                    contents=contents,
                     config=types.GenerateContentConfig(
-                        response_modalities=["AUDIO"],
-                        speech_config=types.SpeechConfig(
-                            voice_config=types.VoiceConfig(
-                                prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=voice)
-                            )
-                        ),
+                        response_modalities=["AUDIO"], speech_config=speech
                     ),
                 )
-                data = resp.candidates[0].content.parts[0].inline_data.data
                 print(f"    via {model}")
-                return data
-            except Exception as exc:  # 429 per-minute / per-day, 404 unknown model, 5xx
+                return resp.candidates[0].content.parts[0].inline_data.data
+            except Exception as exc:
                 last = exc
                 msg = str(exc)
-                if "per day" in msg or "404" in msg or "NOT_FOUND" in msg:
-                    print(f"    {model}: unavailable ({msg[:60]}), trying next model")
+                if any(k in msg for k in ("per day", "404", "NOT_FOUND", "400 INVALID")):
+                    print(f"    {model}: unavailable ({msg[:70]}), trying next model")
                     break
-                wait = 25 * (attempt + 1)
-                print(f"    {model}: {msg[:60]} — retrying in {wait}s")
-                time.sleep(wait)
+                print(f"    {model}: {msg[:70]} — retrying in {25 * (attempt + 1)}s")
+                time.sleep(25 * (attempt + 1))
     raise RuntimeError(f"all TTS models failed: {last}")
 
 
-def trim(pcm: bytes, threshold: int = 900) -> bytes:
-    """Strip leading/trailing near-silence so clips sit tightly on the timeline."""
-    import array
+def write(path: Path, pcm: bytes) -> None:
+    with wave.open(str(path), "wb") as w:
+        w.setnchannels(1)
+        w.setsampwidth(2)
+        w.setframerate(RATE)
+        w.writeframes(pcm)
 
+
+def take(client: genai.Client, name: str, contents: str, speech: types.SpeechConfig) -> bytes:
+    path = OUT / f"_{name}.wav"
+    if path.exists():
+        with wave.open(str(path), "rb") as w:
+            return w.readframes(w.getnframes())
+    print(f"  recording take '{name}'")
+    pcm = request(client, contents, speech)
+    write(path, pcm)
+    return pcm
+
+
+def split(pcm: bytes, parts: int, threshold: int = 700) -> list[bytes]:
+    """Cut a take into `parts` lines at its parts-1 longest pauses."""
+    s = array.array("h", pcm)
+    win = RATE // 50  # 20 ms windows
+    loud = [
+        max((abs(v) for v in s[i : i + win]), default=0) >= threshold for i in range(0, len(s), win)
+    ]
+    gaps: list[tuple[int, int]] = []  # (length in windows, middle window)
+    run = 0
+    for i, is_loud in enumerate([*loud, True]):
+        if not is_loud:
+            run += 1
+            continue
+        if run and i - run > 0:  # ignore leading silence
+            gaps.append((run, i - run // 2))
+        run = 0
+    cuts = sorted(mid * win for _, mid in sorted(gaps, reverse=True)[: parts - 1])
+    bounds = [0, *cuts, len(s)]
+    return [s[a:b].tobytes() for a, b in itertools.pairwise(bounds)]
+
+
+def trim(pcm: bytes, threshold: int = 700) -> bytes:
     s = array.array("h", pcm)
     start = next((i for i, v in enumerate(s) if abs(v) > threshold), 0)
     end = next((i for i in range(len(s) - 1, -1, -1) if abs(s[i]) > threshold), len(s) - 1)
-    pad = int(RATE * 0.05)
+    pad = int(RATE * 0.04)
     return s[max(0, start - pad) : min(len(s), end + pad)].tobytes()
 
 
-def tighten(
-    pcm: bytes, threshold: int = 1500, max_gap_s: float = 0.6, keep_s: float = 0.4
-) -> bytes:
-    """Shorten long pauses inside a clip (TTS sometimes leaves 1-2 s mid-sentence)."""
-    import array
-
-    s = array.array("h", pcm)
-    win = RATE // 50  # 20 ms
-    out = array.array("h")
-    quiet: list[array.array] = []
-    for i in range(0, len(s), win):
-        chunk = s[i : i + win]
-        if max((abs(v) for v in chunk), default=0) < threshold:
-            quiet.append(chunk)
-            continue
-        if quiet:
-            if len(quiet) * win > RATE * max_gap_s:
-                quiet = quiet[: int(keep_s * RATE / win)]
-            for q in quiet:
-                out.extend(q)
-            quiet = []
-        out.extend(chunk)
-    return out.tobytes()
+def voice(name: str) -> types.VoiceConfig:
+    return types.VoiceConfig(prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name=name))
 
 
-def main() -> None:
+def main() -> int:
     OUT.mkdir(parents=True, exist_ok=True)
     client = genai.Client(
         api_key=os.environ["GEMINI_API_KEY"], http_options=types.HttpOptions(api_version="v1beta")
     )
+    # Blank lines between lines give the reader a clear pause to split on.
+    narration = take(
+        client,
+        "narration",
+        "\n\n".join(t for _, t in NARRATION),
+        types.SpeechConfig(voice_config=voice(NARRATOR_VOICE)),
+    )
+    dialogue = take(
+        client,
+        "dialogue",
+        "\n".join(f"{who}: {t}" for _, who, t in DIALOGUE),
+        types.SpeechConfig(
+            multi_speaker_voice_config=types.MultiSpeakerVoiceConfig(
+                speaker_voice_configs=[
+                    types.SpeakerVoiceConfig(speaker="Ava", voice_config=voice(AVA_VOICE)),
+                    types.SpeakerVoiceConfig(speaker="Ayesha", voice_config=voice(CALLER_VOICE)),
+                ]
+            )
+        ),
+    )
+    groups = [
+        ([(i, t, NARRATOR_VOICE) for i, t in NARRATION], narration),
+        (
+            [(i, t, AVA_VOICE if w == "Ava" else CALLER_VOICE) for i, w, t in DIALOGUE],
+            dialogue,
+        ),
+    ]
     manifest: dict[str, dict[str, object]] = {}
-    made = 0
-    for line_id, (voice, style), text in LINES:
-        path = OUT / f"{line_id}.wav"
-        if not path.exists():
-            if made:
-                time.sleep(21)  # free tier: 3 TTS requests per minute
-            print(f"  {line_id} ({voice}): {text[:60]}")
-            pcm = trim(synth(client, voice, style, text))
-            with wave.open(str(path), "wb") as w:
-                w.setnchannels(1)
-                w.setsampwidth(2)
-                w.setframerate(RATE)
-                w.writeframes(pcm)
-            made += 1
-        with wave.open(str(path), "rb") as w:
-            pcm = w.readframes(w.getnframes())
-        tight = tighten(pcm)
-        if len(tight) < len(pcm):  # idempotent: only rewrites clips with long pauses
-            with wave.open(str(path), "wb") as w:
-                w.setnchannels(1)
-                w.setsampwidth(2)
-                w.setframerate(RATE)
-                w.writeframes(tight)
-        seconds = len(tight) / 2 / RATE
-        manifest[line_id] = {
-            "file": f"vo/{line_id}.wav",
-            "seconds": round(seconds, 3),
-            "text": text,
-            "voice": voice,
-        }
+    for lines, pcm in groups:
+        for (line_id, text, spk), seg in zip(lines, split(pcm, len(lines)), strict=True):
+            seg = trim(seg)
+            write(OUT / f"{line_id}.wav", seg)
+            seconds = len(seg) / 2 / RATE
+            manifest[line_id] = {
+                "file": f"vo/{line_id}.wav",
+                "seconds": round(seconds, 3),
+                "text": text,
+                "voice": spk,
+            }
+            per_word = seconds / max(1, len(text.split()))
+            flag = "  <- check" if per_word > 0.6 or per_word < 0.15 else ""
+            print(f"  {line_id:11} {seconds:5.1f}s  {text[:60]}{flag}")
     MANIFEST.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     total = sum(float(str(v["seconds"])) for v in manifest.values())
-    print(f"wrote {MANIFEST.name}: {len(manifest)} clips, {total:.1f}s of voice ({made} new)")
+    print(f"wrote {MANIFEST.name}: {len(manifest)} clips, {total:.1f}s of voice")
+    return 0
 
 
 if __name__ == "__main__":

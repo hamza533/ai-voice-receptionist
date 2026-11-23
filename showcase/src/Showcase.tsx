@@ -24,20 +24,20 @@ import { vf, type VoId } from "./vo";
 type SceneDef = { id: string; el: React.ReactNode; vo?: VoId; lead?: number; tail?: number; min?: number };
 
 const DEFS: SceneDef[] = [
-  { id: "intro", el: <IntroScene />, vo: "n_intro", lead: 18, tail: 14, min: 90 },
-  { id: "problem", el: <ProblemScene />, vo: "n_problem", lead: 8, tail: 30 },
-  { id: "landing", el: <LandingScene />, vo: "n_landing", lead: 10, tail: 14 },
+  { id: "intro", el: <IntroScene />, vo: "n_intro", lead: 14, tail: 12, min: 84 },
+  { id: "problem", el: <ProblemScene />, vo: "n_problem", lead: 6, tail: 26 },
+  { id: "landing", el: <LandingScene />, vo: "n_landing", lead: 8, tail: 8 },
   { id: "call", el: <LiveCallScene />, min: CALL_END },
-  { id: "booked", el: <BookedScene />, vo: "n_booked", lead: 10, tail: 26, min: 140 },
-  { id: "overview", el: <OverviewScene />, vo: "n_overview", lead: 10, tail: 20, min: 150 },
-  { id: "detail", el: <CallDetailScene />, vo: "n_detail", lead: 10, tail: 20, min: 180 },
-  { id: "teach", el: <TeachScene />, vo: "n_teach", lead: 12, tail: 18 },
-  { id: "guarantees", el: <GuaranteesScene />, vo: "n_trust", lead: 18, tail: 20 },
-  { id: "mobile", el: <MobileScene />, vo: "n_mobile", lead: 14, tail: 26, min: 100 },
-  { id: "outro", el: <OutroScene />, vo: "n_outro", lead: 22, tail: 40, min: 120 },
+  { id: "booked", el: <BookedScene />, vo: "n_booked", lead: 8, tail: 30, min: 130 },
+  { id: "overview", el: <OverviewScene />, vo: "n_overview", lead: 8, tail: 34, min: 130 },
+  { id: "detail", el: <CallDetailScene />, vo: "n_detail", lead: 8, tail: 26, min: 150 },
+  { id: "teach", el: <TeachScene />, vo: "n_teach", lead: 10, tail: 22 },
+  { id: "guarantees", el: <GuaranteesScene />, vo: "n_trust", lead: 14, tail: 24 },
+  { id: "mobile", el: <MobileScene />, vo: "n_mobile", lead: 10, tail: 22, min: 90 },
+  { id: "outro", el: <OutroScene />, vo: "n_outro", lead: 16, tail: 40, min: 100 },
 ];
 
-export const T = 14; // transition length in frames
+export const T = 12; // transition length in frames
 
 export const SCENES = DEFS.map((d) => ({
   ...d,

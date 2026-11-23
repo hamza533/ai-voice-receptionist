@@ -1,6 +1,6 @@
 # Showcase video (Remotion)
 
-A ~98-second voiced product video built from **real screenshots of the running app** plus an
+A ~82-second voiced product video built from **real screenshots of the running app** plus an
 animated recreation of the in-call screen. Output: `docs/images/showcase.mp4` and
 `docs/images/demo.gif`.
 

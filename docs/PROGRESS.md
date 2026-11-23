@@ -53,6 +53,8 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-24 – Claude Code – README costs: added the LiveKit Ship plan $50/month base fee and
+  current LiveKit telephony rates (livekit.com/pricing, checked 2026-11-23).
 - 2026-11-23 – Claude Code – Voiced showcase (single-take narrator, paced call dialogue), then
   removed all technical details from the video; plain-language call metrics in the dashboard
   (typical/slowest reply, "Actions taken", "Natural voice"). Merged PR #1 into main.

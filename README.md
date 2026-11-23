@@ -120,20 +120,29 @@ runner throttles to the free tier, retries with backoff and caches judge calls.
 
 ## Costs
 
-**Development: $0** — LiveKit Build plan (1,000 agent minutes, one US number, no card), Gemini
-free tier, Google Calendar API, Gmail SMTP, Vercel Hobby / Render free / Neon free.
-Free-tier limits: Gemini Live concurrency and rate limits, 5 concurrent LiveKit sessions, Render
-sleeps when idle (the UI shows "waking up the demo server").
+**Development: $0** — LiveKit Build plan (1,000 agent minutes, one free US number with 50
+inbound minutes, no card), Gemini free tier, Google Calendar API, Gmail SMTP, Vercel Hobby /
+Render free / Neon free. Free-tier limits: Gemini Live concurrency and rate limits, 5 concurrent
+LiveKit sessions and cold starts after idle, Render sleeps when idle (the UI shows "waking up
+the demo server"). Build fits a demo (about 330 three-minute calls, ~16 of them by phone), not
+real customers.
 
-**Production, estimated** (list prices, 3-minute average call; verify against current pricing):
+**Production, estimated** (list prices, 3-minute average call, every call by phone as the worst
+case; LiveKit prices from [livekit.com/pricing](https://livekit.com/pricing), checked
+2026-11-23):
 
 | Item | 500 calls/month | 2,000 calls/month |
 |---|---|---|
 | Gemini Live paid audio (~$0.03/min incl. context) | ~$45 | ~$180 |
-| LiveKit Cloud agent + media minutes | ~$15–50 | ~$60–100 |
-| Phone: SIP trunk inbound (~$0.01/min) + local number | ~$17 | ~$62 |
+| LiveKit Cloud Ship plan (base fee, includes 5,000 agent minutes and 20 concurrent calls) | $50 | $50 |
+| LiveKit agent minutes over 5,000 ($0.01/min) | $0 | ~$10 |
+| Phone: LiveKit US number (1 free) + inbound $0.01/min after 100 free minutes | ~$14 | ~$59 |
 | Azure (Container Apps ×3, PG Flexible B1ms, Key Vault, App Insights, Blob) | ~$110 | ~$140 |
-| **Total** | **~$190–220 (~$0.40/call)** | **~$440–480 (~$0.23/call)** |
+| **Total** | **~$220 (~$0.44/call)** | **~$440 (~$0.22/call)** |
+
+Web calls use no phone minutes, so a mix of web and phone calls costs less. Bringing your own
+Twilio/Telnyx SIP trunk instead of a LiveKit number costs $0.004/min on LiveKit after 5,000 free
+minutes, plus the trunk provider's own rate.
 
 Per-call model cost is measured per call (tokens → estimated USD) and shown in the call record.
 

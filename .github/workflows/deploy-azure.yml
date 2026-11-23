@@ -34,7 +34,7 @@ jobs:
           docker build --target agent -t ghcr.io/$OWNER/ai-voice-receptionist-agent:$V .
           docker push ghcr.io/$OWNER/ai-voice-receptionist-api:$V
           docker push ghcr.io/$OWNER/ai-voice-receptionist-agent:$V
-      - uses: azure/login@v2
+      - uses: azure/login@v3
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}

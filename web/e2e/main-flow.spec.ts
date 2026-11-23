@@ -11,7 +11,8 @@ import { AGENT_TOKEN, API_URL, E2E_EMAIL, E2E_PASSWORD } from "./fixtures";
  * also connects for real using Chromium's fake microphone.
  */
 test("log in, change greeting, take a call, see it in the dashboard", async ({ page, request }) => {
-  const greeting = `Thanks for calling Luma Hair Studio, Ava here (${Date.now()}). How can I help?`;
+  const stamp = String(Date.now());
+  const greeting = `Thanks for calling Luma Hair Studio, Ava here (${stamp}). How can I help?`;
 
   // 1. Log in
   await page.goto("/login");
@@ -41,7 +42,9 @@ test("log in, change greeting, take a call, see it in the dashboard", async ({ p
     data: { channel: "web", room_name: "e2e-room", caller_number: "" },
   })).json();
   expect(start.allowed).toBeTruthy();
-  expect(start.greeting).toContain(greeting); // the new setting reaches the next call
+  // The new setting reaches the next call; the recording notice is inserted before the question.
+  expect(start.greeting).toContain(`Ava here (${stamp}).`);
+  expect(start.greeting).toContain("This call may be recorded and transcribed. How can I help?");
   const callId = start.call_id as string;
 
   const avail = await (await request.post(`${API_URL}/api/agent/tools/check_availability`, {

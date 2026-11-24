@@ -1,104 +1,104 @@
 {
+  "n_hook": {
+    "file": "vo/n_hook.wav",
+    "seconds": 6.094,
+    "text": "It's Saturday morning. Every chair is full, your hands are busy, and the phone keeps ringing.",
+    "voice": "Sulafat"
+  },
+  "n_cost": {
+    "file": "vo/n_cost.wav",
+    "seconds": 4.335,
+    "text": "Each call you can't answer is a customer who quietly books somewhere else.",
+    "voice": "Sulafat"
+  },
   "n_intro": {
     "file": "vo/n_intro.wav",
-    "seconds": 3.989,
-    "text": "Meet Receptly: the AI receptionist that never misses a call.",
-    "voice": "Puck"
+    "seconds": 7.207,
+    "text": "Meet Ava, your receptionist from Receptly. She answers every call, day and night, in a warm, natural voice.",
+    "voice": "Sulafat"
   },
-  "n_problem": {
-    "file": "vo/n_problem.wav",
-    "seconds": 5.207,
-    "text": "Busy with a client? Closed for the night? Every unanswered call is a booking you've lost.",
-    "voice": "Puck"
+  "n_confirm": {
+    "file": "vo/n_confirm.wav",
+    "seconds": 4.756,
+    "text": "The booking goes straight into your calendar, and your customer gets a confirmation text right away.",
+    "voice": "Sulafat"
   },
-  "n_landing": {
-    "file": "vo/n_landing.wav",
-    "seconds": 4.991,
-    "text": "Now Ava answers every call, on your phone line or right from your website. Listen.",
-    "voice": "Puck"
+  "n_waitlist": {
+    "file": "vo/n_waitlist.wav",
+    "seconds": 7.637,
+    "text": "A reminder goes out the day before. If someone can't make it, the time is offered to the next person on your waitlist, so your chairs stay full.",
+    "voice": "Sulafat"
+  },
+  "n_team": {
+    "file": "vo/n_team.wav",
+    "seconds": 7.096,
+    "text": "Ava knows who is working and when, including days off and lunch breaks, so she only offers times that really work.",
+    "voice": "Sulafat"
+  },
+  "n_value": {
+    "file": "vo/n_value.wav",
+    "seconds": 5.479,
+    "text": "At a glance, you can see every call, and how much business Ava brought in, even while you were closed.",
+    "voice": "Sulafat"
+  },
+  "n_trust": {
+    "file": "vo/n_trust.wav",
+    "seconds": 5.811,
+    "text": "She never double-books, never guesses, and passes callers to your team whenever they ask for a person.",
+    "voice": "Sulafat"
+  },
+  "n_setup": {
+    "file": "vo/n_setup.wav",
+    "seconds": 5.91,
+    "text": "Getting started takes minutes. Add your hours, your team and your services, and Ava is ready.",
+    "voice": "Sulafat"
+  },
+  "n_outro": {
+    "file": "vo/n_outro.wav",
+    "seconds": 3.884,
+    "text": "Receptly. Never miss a call, or a customer, again.",
+    "voice": "Sulafat"
   },
   "c1": {
     "file": "vo/c1.wav",
-    "seconds": 6.66,
+    "seconds": 6.755,
     "text": "Thank you for calling Luma Hair Studio, this is Ava. This call may be recorded and transcribed. How can I help you today?",
     "voice": "Aoede"
   },
   "c2": {
     "file": "vo/c2.wav",
-    "seconds": 2.92,
-    "text": "Hi! Can I get a haircut with Sara tomorrow afternoon?",
-    "voice": "Puck"
+    "seconds": 3.211,
+    "text": "Hi! Could I book a haircut with Sara tomorrow afternoon?",
+    "voice": "Leda"
   },
   "c3": {
     "file": "vo/c3.wav",
-    "seconds": 4.66,
-    "text": "Sara has 2:30 PM or 4:00 PM tomorrow. Which works best for you?",
+    "seconds": 4.718,
+    "text": "Of course. Sara has 2:30 or 4:00 tomorrow. Which would you prefer?",
     "voice": "Aoede"
   },
   "c4": {
     "file": "vo/c4.wav",
-    "seconds": 1.721,
-    "text": "2:30, please.",
-    "voice": "Puck"
+    "seconds": 1.348,
+    "text": "2:30 would be perfect.",
+    "voice": "Leda"
   },
   "c5": {
     "file": "vo/c5.wav",
-    "seconds": 6.921,
-    "text": "Lovely \u2014 a haircut with Sara tomorrow at 2:30 PM, for Ayesha Khan. Shall I book it?",
+    "seconds": 5.659,
+    "text": "Lovely. That's a haircut with Sara, tomorrow at 2:30, for Ayesha Khan. Shall I confirm it?",
     "voice": "Aoede"
   },
   "c6": {
     "file": "vo/c6.wav",
-    "seconds": 1.481,
-    "text": "Yes, please!",
-    "voice": "Puck"
+    "seconds": 0.68,
+    "text": "Yes, please.",
+    "voice": "Leda"
   },
   "c7": {
     "file": "vo/c7.wav",
-    "seconds": 4.961,
-    "text": "You're all set! A confirmation email is on its way. Anything else I can help with?",
+    "seconds": 4.357,
+    "text": "You're all set! I've sent you a confirmation text. Is there anything else I can help with?",
     "voice": "Aoede"
-  },
-  "n_booked": {
-    "file": "vo/n_booked.wav",
-    "seconds": 3.914,
-    "text": "It's in Google Calendar instantly, and the confirmation email is already sent.",
-    "voice": "Puck"
-  },
-  "n_overview": {
-    "file": "vo/n_overview.wav",
-    "seconds": 3.396,
-    "text": "Every call, every booking, every result, in one dashboard.",
-    "voice": "Puck"
-  },
-  "n_detail": {
-    "file": "vo/n_detail.wav",
-    "seconds": 4.946,
-    "text": "Open any call for the full transcript, every action Ava took, and an AI summary.",
-    "voice": "Puck"
-  },
-  "n_teach": {
-    "file": "vo/n_teach.wav",
-    "seconds": 4.233,
-    "text": "Teach Ava your prices, hours and FAQs in minutes. No code.",
-    "voice": "Puck"
-  },
-  "n_trust": {
-    "file": "vo/n_trust.wav",
-    "seconds": 5.94,
-    "text": "She only offers times that are really free, never double-books, and hands off to your team whenever a caller asks.",
-    "voice": "Puck"
-  },
-  "n_mobile": {
-    "file": "vo/n_mobile.wav",
-    "seconds": 1.709,
-    "text": "Your front desk, in your pocket.",
-    "voice": "Puck"
-  },
-  "n_outro": {
-    "file": "vo/n_outro.wav",
-    "seconds": 2.207,
-    "text": "Receptly. Never miss a call again.",
-    "voice": "Puck"
   }
 }

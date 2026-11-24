@@ -7,7 +7,7 @@ import { Audio } from "@remotion/media";
 import { Backdrop, Title, ease, useEnter } from "./components";
 import { C, fontFamily } from "./theme";
 
-import { callTimeline, clip, type CallLine } from "./vo";
+import { audioFile, callTimeline, type CallLine } from "./vo";
 
 type Line = CallLine;
 const { lines: LINES, tools: TOOLS, end: CALL_END } = callTimeline();
@@ -27,9 +27,9 @@ function Bubble({ line }: { line: Line }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: caller ? "flex-end" : "flex-start", gap: 6, opacity: p, transform: `translateY(${(1 - p) * 14}px)` }}>
       {!caller ? (
-        <span style={{ background: C.primary, color: "white", fontSize: 13, fontWeight: 700, borderRadius: 6, padding: "3px 8px" }}>✦ AI Agent</span>
+        <span style={{ background: C.primary, color: "white", fontSize: 13, fontWeight: 700, borderRadius: 6, padding: "3px 8px" }}>✦ Ava</span>
       ) : (
-        <span style={{ color: C.muted, fontSize: 14 }}>Caller</span>
+        <span style={{ color: C.muted, fontSize: 14 }}>Ayesha</span>
       )}
       <div
         style={{
@@ -97,7 +97,7 @@ export function LiveCallScene() {
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
       <div style={{ position: "absolute", left: 120, top: 70 }}>
-        <Title eyebrow="Live call" title="A real conversation, booked in seconds" size={52} />
+        <Title eyebrow="A real call" title="Ava books it in under a minute" size={52} />
       </div>
       <div
         style={{
@@ -139,8 +139,8 @@ export function LiveCallScene() {
         <div style={{ display: "flex", flexDirection: "column", gap: 24, minHeight: 0 }}>
           <div style={{ flex: 1, minHeight: 0, background: "white", borderRadius: 28, border: `1px solid ${C.border}`, boxShadow: "0 30px 80px -40px rgba(11,27,51,0.35)", display: "flex", flexDirection: "column", overflow: "hidden" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px 26px", borderBottom: `1px solid ${C.border}` }}>
-              <div style={{ fontSize: 22, fontWeight: 700 }}>💬 Live transcript</div>
-              <span style={{ background: C.mint, color: C.primary, borderRadius: 999, padding: "4px 12px", fontSize: 15, fontWeight: 700 }}>● Real-time</span>
+              <div style={{ fontSize: 22, fontWeight: 700 }}>💬 The conversation</div>
+              <span style={{ background: C.mint, color: C.primary, borderRadius: 999, padding: "4px 12px", fontSize: 15, fontWeight: 700 }}>● Live</span>
             </div>
             <div style={{ position: "relative", flex: 1, overflow: "hidden" }}>
               {/* Bottom-anchored: new lines push older ones up and out, like a chat. */}
@@ -152,7 +152,7 @@ export function LiveCallScene() {
             </div>
           </div>
           <div style={{ background: "white", borderRadius: 28, border: `1px solid ${C.border}`, padding: "20px 26px", boxShadow: "0 30px 80px -40px rgba(11,27,51,0.35)" }}>
-            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 14 }}>✦ What the AI is doing</div>
+            <div style={{ fontSize: 22, fontWeight: 700, marginBottom: 14 }}>✦ What Ava is doing</div>
             <div style={{ display: "flex", flexDirection: "column", gap: 12, minHeight: 150 }}>
               {TOOLS.filter((t) => frame >= t.at).map((t) => {
                 const done = frame >= t.done;
@@ -181,7 +181,7 @@ export function LiveCallScene() {
       {LINES.map((l) => (
         <Sequence key={`a-${l.id}`} from={l.at} durationInFrames={l.frames + 6}>
           {/* Caller audio sounds a little "phone-like" next to Ava's studio-clean voice. */}
-          <Audio src={staticFile(clip(l.id).file)} volume={l.who === "caller" ? 0.85 : 1} />
+          <Audio src={staticFile(audioFile(l.id))} volume={l.who === "caller" ? 0.85 : 1} />
         </Sequence>
       ))}
     </AbsoluteFill>

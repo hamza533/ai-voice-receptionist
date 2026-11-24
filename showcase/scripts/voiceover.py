@@ -39,34 +39,57 @@ MODELS = [
     "gemini-3.8-flash-lite-tts",
 ]
 
-NARRATOR_VOICE = "Puck"  # upbeat
+NARRATOR_VOICE = "Sulafat"  # warm
 AVA_VOICE = "Aoede"  # the receptionist's voice in the product
 CALLER_VOICE = "Leda"  # Ayesha, the caller
 
+# Problem first, then the answer. Plain words only: no product internals.
 NARRATION: list[tuple[str, str]] = [
-    ("n_intro", "Meet Receptly: the AI receptionist that never misses a call."),
     (
-        "n_problem",
-        "Busy with a client? Closed for the night? Every unanswered call is a booking you've lost.",
+        "n_hook",
+        "It's Saturday morning. Every chair is full, your hands are busy, "
+        "and the phone keeps ringing.",
     ),
     (
-        "n_landing",
-        "Now Ava answers every call, on your phone line or right from your website. Listen.",
+        "n_cost",
+        "Each call you can't answer is a customer who quietly books somewhere else.",
     ),
-    ("n_booked", "It's in Google Calendar instantly, and the confirmation email is already sent."),
-    ("n_overview", "Every call, every booking, every result, in one dashboard."),
     (
-        "n_detail",
-        "Open any call for the full transcript, every action Ava took, and an AI summary.",
+        "n_intro",
+        "Meet Ava, your receptionist from Receptly. She answers every call, day and night, "
+        "in a warm, natural voice.",
     ),
-    ("n_teach", "Teach Ava your prices, hours and FAQs in minutes. No code."),
+    (
+        "n_confirm",
+        "The booking goes straight into your calendar, and your customer gets a "
+        "confirmation text right away.",
+    ),
+    (
+        "n_waitlist",
+        "A reminder goes out the day before. If someone can't make it, the time is offered "
+        "to the next person on your waitlist, so your chairs stay full.",
+    ),
+    (
+        "n_team",
+        "Ava knows who is working and when, including days off and lunch breaks, "
+        "so she only offers times that really work.",
+    ),
+    (
+        "n_value",
+        "At a glance, you can see every call, and how much business Ava brought in, "
+        "even while you were closed.",
+    ),
     (
         "n_trust",
-        "She only offers times that are really free, never double-books, and hands off to "
-        "your team whenever a caller asks.",
+        "She never double-books, never guesses, and passes callers to your team "
+        "whenever they ask for a person.",
     ),
-    ("n_mobile", "Your front desk, in your pocket."),
-    ("n_outro", "Receptly. Never miss a call again."),
+    (
+        "n_setup",
+        "Getting started takes minutes. Add your hours, your team and your services, "
+        "and Ava is ready.",
+    ),
+    ("n_outro", "Receptly. Never miss a call, or a customer, again."),
 ]
 
 DIALOGUE: list[tuple[str, str, str]] = [
@@ -76,16 +99,21 @@ DIALOGUE: list[tuple[str, str, str]] = [
         "Thank you for calling Luma Hair Studio, this is Ava. This call may be recorded "
         "and transcribed. How can I help you today?",
     ),
-    ("c2", "Ayesha", "Hi! Can I get a haircut with Sara tomorrow afternoon?"),
-    ("c3", "Ava", "Sara's free at 2:30 or 4 tomorrow. Which suits you best?"),
-    ("c4", "Ayesha", "2:30, please."),
+    ("c2", "Ayesha", "Hi! Could I book a haircut with Sara tomorrow afternoon?"),
+    ("c3", "Ava", "Of course. Sara has two thirty or four o'clock tomorrow. Which would you prefer?"),
+    ("c4", "Ayesha", "Two thirty would be perfect."),
     (
         "c5",
         "Ava",
-        "Perfect. A haircut with Sara, tomorrow at 2:30, for Ayesha Khan. Shall I book it?",
+        "Lovely. That's a haircut with Sara, tomorrow at two thirty, for Ayesha Khan. "
+        "Shall I confirm it?",
     ),
-    ("c6", "Ayesha", "Yes, please!"),
-    ("c7", "Ava", "Done! Your confirmation email is on its way. Anything else I can help with?"),
+    ("c6", "Ayesha", "Yes, please."),
+    (
+        "c7",
+        "Ava",
+        "You're all set! I've sent you a confirmation text. Is there anything else I can help with?",
+    ),
 ]
 
 
@@ -133,24 +161,60 @@ def take(client: genai.Client, name: str, contents: str, speech: types.SpeechCon
     return pcm
 
 
-def split(pcm: bytes, parts: int, threshold: int = 700) -> list[bytes]:
-    """Cut a take into `parts` lines at its parts-1 longest pauses."""
+def split(pcm: bytes, texts: list[str], threshold: int = 700) -> list[bytes]:
+    """Cut a take into one clip per line.
+
+    Chooses all cuts together (dynamic programming over the pauses): each clip's length
+    should match its share of the text, and cuts prefer longer pauses. Picking the N
+    longest pauses alone fails when a line has a long pause of its own (after a full
+    stop), and the pace drifts too much for fixed positions.
+    """
     s = array.array("h", pcm)
     win = RATE // 50  # 20 ms windows
     loud = [
         max((abs(v) for v in s[i : i + win]), default=0) >= threshold for i in range(0, len(s), win)
     ]
-    gaps: list[tuple[int, int]] = []  # (length in windows, middle window)
+    speech = [i for i, x in enumerate(loud) if x]
+    n = len(texts)
+    if not speech or n < 2:
+        return [pcm]
+    first, last = speech[0], speech[-1]
+    pauses: list[tuple[int, int]] = []  # (middle window, length in windows) inside the speech
     run = 0
-    for i, is_loud in enumerate([*loud, True]):
+    for i, is_loud in enumerate(loud):
         if not is_loud:
             run += 1
             continue
-        if run and i - run > 0:  # ignore leading silence
-            gaps.append((run, i - run // 2))
+        if run >= 8 and first < i - run and i <= last:  # >= 160 ms
+            pauses.append((i - run // 2, run))
         run = 0
-    cuts = sorted(mid * win for _, mid in sorted(gaps, reverse=True)[: parts - 1])
-    bounds = [0, *cuts, len(s)]
+    points = [(first, 0), *pauses, (last, 0)]
+    chars = [max(1, len(t)) for t in texts]
+    per_char = (last - first) / sum(chars)
+    inf = float("inf")
+    m = len(points)
+    # best[k][j]: lowest cost for the first k lines ending at point j
+    best = [[inf] * m for _ in range(n + 1)]
+    back = [[0] * m for _ in range(n + 1)]
+    best[0][0] = 0.0
+    for k in range(1, n + 1):
+        want = chars[k - 1] * per_char
+        for j in range(1, m):
+            if k == n and j != m - 1:
+                continue
+            for a in range(j):
+                if best[k - 1][a] == inf:
+                    continue
+                dur = points[j][0] - points[a][0]
+                cost = ((dur - want) / want) ** 2 - 0.02 * points[j][1]
+                if best[k - 1][a] + cost < best[k][j]:
+                    best[k][j], back[k][j] = best[k - 1][a] + cost, a
+    cuts = []
+    j = m - 1
+    for k in range(n, 1, -1):
+        j = back[k][j]
+        cuts.append(points[j][0])
+    bounds = [0, *(c * win for c in reversed(cuts)), len(s)]
     return [s[a:b].tobytes() for a, b in itertools.pairwise(bounds)]
 
 
@@ -160,6 +224,13 @@ def trim(pcm: bytes, threshold: int = 700) -> bytes:
     end = next((i for i in range(len(s) - 1, -1, -1) if abs(s[i]) > threshold), len(s) - 1)
     pad = int(RATE * 0.04)
     return s[max(0, start - pad) : min(len(s), end + pad)].tobytes()
+
+
+def on_screen(text: str) -> str:
+    """Times are spelled out for the voice, shown as numbers on screen."""
+    return text.replace("two thirty", "2:30").replace("Two thirty", "2:30").replace(
+        "four o'clock", "4:00"
+    )
 
 
 def voice(name: str) -> types.VoiceConfig:
@@ -200,14 +271,14 @@ def main() -> int:
     ]
     manifest: dict[str, dict[str, object]] = {}
     for lines, pcm in groups:
-        for (line_id, text, spk), seg in zip(lines, split(pcm, len(lines)), strict=True):
+        for (line_id, text, spk), seg in zip(lines, split(pcm, [t for _, t, _ in lines]), strict=True):
             seg = trim(seg)
             write(OUT / f"{line_id}.wav", seg)
             seconds = len(seg) / 2 / RATE
             manifest[line_id] = {
                 "file": f"vo/{line_id}.wav",
                 "seconds": round(seconds, 3),
-                "text": text,
+                "text": on_screen(text),
                 "voice": spk,
             }
             per_word = seconds / max(1, len(text.split()))

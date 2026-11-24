@@ -276,3 +276,117 @@ export function Pill({ children, bg = C.primaryFixed, color = "#00201b", style }
     </span>
   );
 }
+
+// ---------------------------------------------------------------- phones (texts, calls)
+
+export type Sms = { at: number; from: "business" | "customer"; text: string };
+
+function StatusBar({ dark = false }: { dark?: boolean }) {
+  return (
+    <div style={{ height: 44, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 30px", fontFamily, fontWeight: 600, fontSize: 16, color: dark ? "white" : C.text }}>
+      <span>9:41</span>
+      <span style={{ width: 96, height: 26, borderRadius: 14, background: "#0b1220" }} />
+      <span style={{ letterSpacing: 2 }}>▮▮▮</span>
+    </div>
+  );
+}
+
+/** A phone showing a text conversation; messages appear at their frame. */
+export function SmsPhone({ contact, messages, width = 360 }: { contact: string; messages: Sms[]; width?: number }) {
+  const frame = useCurrentFrame();
+  const height = width * 2.05;
+  const typing = messages.find((m) => m.from === "business" && frame >= m.at - 16 && frame < m.at);
+  return (
+    <div style={{ width: width + 24, height: height + 24, borderRadius: 58, background: "#0b1220", padding: 12, boxShadow: "0 60px 120px -40px rgba(11,27,51,0.55)" }}>
+      <div style={{ width, height, borderRadius: 46, background: "#f4f6fa", overflow: "hidden", display: "flex", flexDirection: "column", fontFamily }}>
+        <StatusBar />
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "6px 0 14px", borderBottom: `1px solid ${C.border}`, background: "white" }}>
+          <BrandMark size={44} />
+          <div style={{ fontSize: 17, fontWeight: 700, color: C.text }}>{contact}</div>
+          <div style={{ fontSize: 13, color: C.muted }}>Text message</div>
+        </div>
+        <div style={{ flex: 1, position: "relative" }}>
+          <div style={{ position: "absolute", left: 14, right: 14, bottom: 14, display: "flex", flexDirection: "column", gap: 10 }}>
+            {messages
+              .filter((m) => frame >= m.at)
+              .map((m) => {
+                const p = interpolate(frame - m.at, [0, 12], [0, 1], { extrapolateRight: "clamp", easing: ease });
+                const mine = m.from === "customer";
+                return (
+                  <div key={m.at} style={{ display: "flex", justifyContent: mine ? "flex-end" : "flex-start", opacity: p, transform: `translateY(${(1 - p) * 16}px) scale(${0.96 + 0.04 * p})` }}>
+                    <div
+                      style={{
+                        maxWidth: "82%",
+                        padding: "11px 14px",
+                        borderRadius: 20,
+                        borderBottomLeftRadius: mine ? 20 : 6,
+                        borderBottomRightRadius: mine ? 6 : 20,
+                        background: mine ? C.primary : "white",
+                        color: mine ? "white" : C.text,
+                        fontSize: 16.5,
+                        lineHeight: 1.38,
+                        boxShadow: mine ? "none" : "0 6px 16px -10px rgba(11,27,51,0.35)",
+                      }}
+                    >
+                      {m.text}
+                    </div>
+                  </div>
+                );
+              })}
+            {typing ? (
+              <div style={{ display: "flex" }}>
+                <div style={{ background: "white", borderRadius: 18, padding: "12px 16px", display: "flex", gap: 5 }}>
+                  {[0, 1, 2].map((i) => (
+                    <span key={i} style={{ width: 8, height: 8, borderRadius: 4, background: C.muted, opacity: 0.35 + 0.65 * Math.abs(Math.sin((frame + i * 5) / 5)) }} />
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+        <div style={{ margin: "0 14px 18px", height: 40, borderRadius: 20, background: "white", border: `1px solid ${C.border}`, display: "flex", alignItems: "center", padding: "0 16px", fontSize: 15, color: C.muted }}>
+          Text message
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** A phone ringing with an incoming call nobody can pick up. */
+export function RingingPhone({ width = 360 }: { width?: number }) {
+  const frame = useCurrentFrame();
+  const height = width * 2.05;
+  const shake = Math.sin(frame / 1.6) * (Math.floor(frame / 20) % 2 === 0 ? 2.2 : 0);
+  const ring = (offset: number) => {
+    const t = ((frame + offset) % 50) / 50;
+    return { transform: `scale(${1 + t * 0.9})`, opacity: (1 - t) * 0.5 };
+  };
+  return (
+    <div style={{ width: width + 24, height: height + 24, borderRadius: 58, background: "#0b1220", padding: 12, boxShadow: "0 60px 120px -40px rgba(11,27,51,0.6)", transform: `rotate(${shake * 0.4}deg) translateX(${shake}px)` }}>
+      <div style={{ width, height, borderRadius: 46, overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", fontFamily, background: `linear-gradient(180deg, #1f3a5f, ${C.navy})` }}>
+        <div style={{ width: "100%" }}>
+          <StatusBar dark />
+        </div>
+        <div style={{ marginTop: 70, fontSize: 18, color: "rgba(255,255,255,0.7)" }}>Incoming call</div>
+        <div style={{ marginTop: 10, fontSize: 32, fontWeight: 700, color: "white" }}>New customer</div>
+        <div style={{ marginTop: 6, fontSize: 18, color: "rgba(255,255,255,0.65)" }}>mobile</div>
+        <div style={{ position: "relative", marginTop: 70, width: 130, height: 130, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(131,246,224,0.35)", ...ring(0) }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: "rgba(131,246,224,0.35)", ...ring(25) }} />
+          <div style={{ width: 130, height: 130, borderRadius: "50%", background: "rgba(255,255,255,0.12)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 56 }}>📞</div>
+        </div>
+        <div style={{ marginTop: "auto", marginBottom: 70, display: "flex", gap: 90 }}>
+          {[
+            { bg: C.error, label: "Decline" },
+            { bg: "#22c55e", label: "Accept" },
+          ].map((b) => (
+            <div key={b.label} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 10, color: "white", fontSize: 15 }}>
+              <div style={{ width: 70, height: 70, borderRadius: 35, background: b.bg, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 30 }}>✆</div>
+              {b.label}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

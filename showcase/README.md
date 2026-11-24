@@ -1,7 +1,11 @@
 # Showcase video (Remotion)
 
-A ~82-second voiced product video built from **real screenshots of the running app** plus an
-animated recreation of the in-call screen. Output: `docs/images/showcase.mp4` and
+A ~102-second voiced product video that starts with the problem (missed calls are lost
+customers), then shows Ava answering, booking, texting and refilling cancellations. It is
+built from **real screenshots of the running app** plus an
+animated recreation of the in-call screen and text messages. Plain language only: no
+product internals on screen or in the voice. Narrator: Gemini "Sulafat" (warm); Ava:
+"Aoede"; caller: "Leda". Output: `docs/images/showcase.mp4` and
 `docs/images/demo.gif`.
 
 ## Regenerate

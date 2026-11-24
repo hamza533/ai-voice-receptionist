@@ -1,7 +1,18 @@
-import React from "react";
-import { AbsoluteFill, interpolate, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, interpolate, useCurrentFrame } from "remotion";
 
-import { Backdrop, BrandMark, BrowserFrame, Callout, Pill, PhoneFrame, Title, ease, useEnter, useSpring } from "./components";
+import {
+  Backdrop,
+  BrandMark,
+  BrowserFrame,
+  Callout,
+  Pill,
+  RingingPhone,
+  SmsPhone,
+  Title,
+  ease,
+  useEnter,
+  useSpring,
+} from "./components";
 import { C, fontFamily } from "./theme";
 
 /** Maps a point in the 2000-px-wide screenshot preview space to the video frame. */
@@ -15,102 +26,106 @@ function mapper(left: number, top: number, width: number, cropTopView = 0) {
   });
 }
 
-function useCamera(from: number, to: number, frames: number) {
+function useCamera(from: number, to: number, frames: number, delay = 0) {
   const frame = useCurrentFrame();
-  return interpolate(frame, [0, frames], [from, to], { extrapolateRight: "clamp", easing: ease });
+  return interpolate(frame - delay, [0, frames], [from, to], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
 }
 
-// ---------------------------------------------------------------- 1. intro
-
-export function IntroScene() {
+function Notice({ at, title, sub, tone = "error" }: { at: number; title: string; sub: string; tone?: "error" | "ok" }) {
   const frame = useCurrentFrame();
-  const s = useSpring(4, 14);
-  const word = useEnter(16, 26);
-  const tag = useEnter(30, 26);
-  const pill = useEnter(46, 22);
+  const p = interpolate(frame - at, [0, 16], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
   return (
-    <AbsoluteFill style={{ fontFamily, alignItems: "center", justifyContent: "center" }}>
-      <Backdrop dark />
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 28 }}>
-        <div style={{ transform: `scale(${0.4 + 0.6 * s}) rotate(${(1 - s) * -20}deg)`, opacity: Math.min(1, s * 2) }}>
-          <BrandMark size={140} />
-        </div>
-        <div style={{ opacity: word, transform: `translateY(${(1 - word) * 24}px)`, fontSize: 104, fontWeight: 800, color: "white", letterSpacing: "-0.04em" }}>
-          Receptly
-        </div>
-        <div style={{ opacity: tag, transform: `translateY(${(1 - tag) * 18}px)`, fontSize: 38, color: "rgba(255,255,255,0.8)", fontWeight: 500 }}>
-          The AI receptionist that never misses a call
-        </div>
-        <div style={{ opacity: pill, marginTop: 8 }}>
-          <Pill style={{ fontSize: 22, padding: "10px 20px" }}>
-            <span style={{ width: 9, height: 9, borderRadius: 5, background: C.primary, opacity: 0.6 + 0.4 * Math.sin(frame / 5) }} />
-            Live for Luma Hair Studio
-          </Pill>
-        </div>
+    <div
+      style={{
+        opacity: p,
+        transform: `translateX(${(1 - p) * 50}px)`,
+        background: "white",
+        border: `1px solid ${C.border}`,
+        borderRadius: 20,
+        padding: "16px 20px",
+        display: "flex",
+        alignItems: "center",
+        gap: 16,
+        boxShadow: "0 20px 50px -30px rgba(11,27,51,0.35)",
+        fontFamily,
+      }}
+    >
+      <div
+        style={{
+          width: 46,
+          height: 46,
+          borderRadius: 23,
+          background: tone === "ok" ? C.mint : "#ffdad6",
+          color: tone === "ok" ? C.primary : C.error,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 22,
+          fontWeight: 800,
+          flexShrink: 0,
+        }}
+      >
+        {tone === "ok" ? "✓" : "✕"}
+      </div>
+      <div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: C.text }}>{title}</div>
+        <div style={{ fontSize: 18, color: C.muted }}>{sub}</div>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- 1. the Saturday rush
+
+export function HookScene() {
+  const phone = useSpring(2, 16);
+  return (
+    <AbsoluteFill style={{ fontFamily }}>
+      <Backdrop />
+      <div style={{ position: "absolute", left: 140, top: 300, width: 860 }}>
+        <Title eyebrow="Saturday, 11:40 AM" title={<>Every chair is full.<br />The phone keeps ringing.</>} size={80} />
+      </div>
+      <div style={{ position: "absolute", right: 560, top: 120, transform: `translateY(${(1 - phone) * 160}px)`, opacity: Math.min(1, phone * 1.5) }}>
+        <RingingPhone width={330} />
+      </div>
+      <div style={{ position: "absolute", right: 80, top: 260, width: 380, display: "flex", flexDirection: "column", gap: 16 }}>
+        <Notice at={28} title="Missed call" sub="10:42 AM · no voicemail" />
+        <Notice at={48} title="Missed call" sub="11:15 AM · no voicemail" />
+        <Notice at={68} title="Missed call" sub="11:38 AM · no voicemail" />
       </div>
     </AbsoluteFill>
   );
 }
 
-// ---------------------------------------------------------------- 2. problem
+// ---------------------------------------------------------------- 2. what it costs
 
-export function ProblemScene() {
+export function CostScene() {
   const frame = useCurrentFrame();
-  const { durationInFrames } = useVideoConfig();
-  // Missed calls turn into answered ones only after the narration has made its point.
-  const swap = interpolate(frame, [durationInFrames - 44, durationInFrames - 26], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
-  const calls = ["10:42 AM", "1:15 PM", "7:58 PM", "9:20 PM"];
+  const rows = [
+    { t: "10:42 AM", who: "Haircut enquiry" },
+    { t: "11:15 AM", who: "Colour appointment" },
+    { t: "11:38 AM", who: "Kids haircut, today" },
+    { t: "12:05 PM", who: "Bridal styling" },
+  ];
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
-      <div style={{ position: "absolute", left: 140, top: 330, width: 900 }}>
-        <Title
-          eyebrow="The problem"
-          title={<>Every missed call<br />is a lost booking.</>}
-          sub="Busy with a client, closed for the night, on lunch — callers don't leave voicemails. They book somewhere else."
-          size={84}
-        />
+      <div style={{ position: "absolute", left: 140, top: 320, width: 880 }}>
+        <Title eyebrow="The real cost" title={<>Every missed call<br />is a customer lost.</>} sub="Callers rarely leave a message. They simply book with someone who answers." size={78} />
       </div>
-      <div style={{ position: "absolute", right: 160, top: 290, width: 600, display: "flex", flexDirection: "column", gap: 20 }}>
-        {calls.map((t, i) => {
-          const p = interpolate(frame - 10 - i * 9, [0, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+      <div style={{ position: "absolute", right: 110, top: 250, width: 700, display: "flex", flexDirection: "column", gap: 18 }}>
+        {rows.map((r, i) => {
+          const p = interpolate(frame - 2 - i * 6, [0, 14], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+          const lost = interpolate(frame - 30 - i * 7, [0, 12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
           return (
-            <div
-              key={t}
-              style={{
-                opacity: p,
-                transform: `translateX(${(1 - p) * 60}px)`,
-                background: "white",
-                border: `1px solid ${C.border}`,
-                borderRadius: 22,
-                padding: "22px 26px",
-                display: "flex",
-                alignItems: "center",
-                gap: 18,
-                boxShadow: "0 20px 50px -30px rgba(11,27,51,0.35)",
-              }}
-            >
-              <div
-                style={{
-                  width: 54,
-                  height: 54,
-                  borderRadius: 27,
-                  background: swap > 0.5 ? C.mint : "#ffdad6",
-                  color: swap > 0.5 ? C.primary : C.error,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: 26,
-                  fontWeight: 800,
-                }}
-              >
-                {swap > 0.5 ? "✓" : "✕"}
-              </div>
+            <div key={r.t} style={{ opacity: p, transform: `translateX(${(1 - p) * 60}px)`, background: "white", border: `1px solid ${C.border}`, borderRadius: 22, padding: "20px 24px", display: "flex", alignItems: "center", gap: 18, boxShadow: "0 20px 50px -30px rgba(11,27,51,0.35)" }}>
+              <div style={{ width: 50, height: 50, borderRadius: 25, background: "#ffdad6", color: C.error, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800 }}>✕</div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 26, fontWeight: 700, color: C.text }}>{swap > 0.5 ? "Answered by Ava" : "Missed call"}</div>
-                <div style={{ fontSize: 20, color: C.muted }}>
-                  {t} · {swap > 0.5 ? ["Booked haircut", "Answered FAQ", "Booked colour", "Took a message"][i] : "No voicemail"}
-                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.text, whiteSpace: "nowrap" }}>Missed call · {r.t}</div>
+                <div style={{ fontSize: 19, color: C.muted }}>{r.who}</div>
+              </div>
+              <div style={{ opacity: lost, transform: `scale(${0.8 + 0.2 * lost})`, background: "#fff1f0", color: C.error, border: "1px solid #ffc9c4", borderRadius: 999, padding: "6px 14px", fontSize: 17, fontWeight: 700, whiteSpace: "nowrap" }}>
+                Booked elsewhere
               </div>
             </div>
           );
@@ -120,226 +135,201 @@ export function ProblemScene() {
   );
 }
 
-// ---------------------------------------------------------------- 3. landing
+// ---------------------------------------------------------------- 3. meet Ava
 
-export function LandingScene() {
-  const rot = useCamera(-14, -6, 150);
-  const scale = useCamera(0.94, 1.02, 150);
-  const enter = useEnter(0, 30);
+export function IntroScene() {
+  const frame = useCurrentFrame();
+  const s = useSpring(2, 14);
+  const word = useEnter(8, 20);
+  const tag = useEnter(18, 20);
+  const chips = ["Answers every call", "Day and night", "Warm, natural voice", "Books, reminds, refills"];
   return (
-    <AbsoluteFill style={{ fontFamily }}>
-      <Backdrop />
-      <div style={{ position: "absolute", left: 120, top: 300, width: 560 }}>
-        <Title
-          eyebrow="Answers everywhere"
-          title="Phone or website, Ava picks up"
-          sub="Callers tap “Talk to the receptionist” on your site — or simply call your number."
-          size={60}
-        />
-      </div>
-      <div
-        style={{
-          position: "absolute",
-          left: 720,
-          top: 150,
-          perspective: 1800,
-          opacity: enter,
-        }}
-      >
-        <div style={{ transform: `rotateY(${rot}deg) scale(${scale})`, transformOrigin: "left center" }}>
-          <BrowserFrame src="shots/01-landing.png" url="luma-hair.receptly.app" width={1320} />
+    <AbsoluteFill style={{ fontFamily, alignItems: "center", justifyContent: "center" }}>
+      <Backdrop dark />
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 26 }}>
+        <div style={{ transform: `scale(${0.4 + 0.6 * s}) rotate(${(1 - s) * -20}deg)`, opacity: Math.min(1, s * 2) }}>
+          <BrandMark size={130} />
+        </div>
+        <div style={{ opacity: word, transform: `translateY(${(1 - word) * 24}px)`, fontSize: 100, fontWeight: 800, color: "white", letterSpacing: "-0.04em" }}>
+          Meet Ava
+        </div>
+        <div style={{ opacity: tag, transform: `translateY(${(1 - tag) * 18}px)`, fontSize: 36, color: "rgba(255,255,255,0.82)", fontWeight: 500 }}>
+          Your receptionist from <b style={{ color: C.primaryFixed }}>Receptly</b>
+        </div>
+        <div style={{ display: "flex", gap: 14, marginTop: 10 }}>
+          {chips.map((c, i) => {
+            const p = interpolate(frame - 30 - i * 7, [0, 14], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+            return (
+              <span key={c} style={{ opacity: p, transform: `translateY(${(1 - p) * 14}px)`, border: "1px solid rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.9)", borderRadius: 999, padding: "10px 20px", fontSize: 22 }}>
+                ✓ {c}
+              </span>
+            );
+          })}
         </div>
       </div>
     </AbsoluteFill>
   );
 }
 
-// ---------------------------------------------------------------- 5. booked
+// ---------------------------------------------------------------- 5. booked and confirmed
 
-export function BookedScene() {
+export function ConfirmScene() {
   const frame = useCurrentFrame();
-  const W = 1480;
-  const L = 120;
-  const T = 230;
-  const cropTop = 390;
-  const m = mapper(L, T, W, cropTop);
-  const push = useCamera(1, 1.04, 180);
-  const email = interpolate(frame, [40, 62], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
-  const cal = interpolate(frame, [20, 40], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+  const W = 1180;
+  const L = 110;
+  const T = 250;
+  const push = useCamera(1, 1.04, 200);
+  const cal = interpolate(frame, [12, 28], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
-      <div style={{ position: "absolute", left: 120, top: 70 }}>
-        <Title eyebrow="Instant results" title="Booked straight into the calendar" size={56} />
+      <div style={{ position: "absolute", left: 110, top: 70 }}>
+        <Title eyebrow="Seconds later" title="Booked, and confirmed by text" size={56} />
       </div>
       <div style={{ position: "absolute", left: L, top: T, transform: `scale(${push})`, transformOrigin: "30% 30%" }}>
-        <BrowserFrame src="shots/07-appointments.png" url="luma-hair.receptly.app/dashboard/appointments" width={W} crop={{ top: (cropTop * W) / 2000, height: 760 }} />
+        <BrowserFrame src="shots/07-appointments.png" url="luma-hair.receptly.app/dashboard/appointments" width={W} crop={{ top: (360 * W) / 2000, height: 620 }} />
       </div>
-      <Callout {...m(500, 538, 406, 52)} label="✦ Booked by AI — no double bookings" delay={70} side="bottom" />
-      <div
-        style={{
-          position: "absolute",
-          right: 110,
-          top: 250 + (1 - cal) * 30,
-          opacity: cal,
-          background: "white",
-          borderRadius: 20,
-          padding: "18px 22px",
-          display: "flex",
-          alignItems: "center",
-          gap: 14,
-          boxShadow: "0 30px 60px -24px rgba(11,27,51,0.45)",
-          border: `1px solid ${C.border}`,
-          width: 460,
-        }}
-      >
-        <div style={{ width: 52, height: 52, borderRadius: 14, background: "#e8f0fe", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28 }}>📅</div>
+      <div style={{ position: "absolute", left: 640, top: 790 - (1 - cal) * 30, opacity: cal, background: "white", borderRadius: 18, padding: "14px 20px", display: "flex", alignItems: "center", gap: 14, boxShadow: "0 30px 60px -24px rgba(11,27,51,0.45)", border: `1px solid ${C.border}` }}>
+        <div style={{ width: 44, height: 44, borderRadius: 12, background: C.mint, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24 }}>📅</div>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 700, color: C.text }}>Google Calendar</div>
-          <div style={{ fontSize: 18, color: C.muted }}>Event created · Haircut – Ayesha Khan</div>
+          <div style={{ fontSize: 19, fontWeight: 700, color: C.text }}>Added to your calendar</div>
+          <div style={{ fontSize: 16, color: C.muted }}>Haircut · Ayesha Khan · Thu 2:30 PM · Sara</div>
         </div>
       </div>
-      <div
-        style={{
-          position: "absolute",
-          right: 110,
-          bottom: 220 - (1 - email) * 40,
-          opacity: email,
-          width: 520,
-          background: "white",
-          borderRadius: 22,
-          padding: "24px 26px",
-          boxShadow: "0 40px 80px -30px rgba(11,27,51,0.5)",
-          border: `1px solid ${C.border}`,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 22, background: C.mint, color: C.primary, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>✉</div>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 700 }}>Luma Hair Studio</div>
-            <div style={{ fontSize: 15, color: C.muted }}>to ayesha.k@example.com · now</div>
-          </div>
+      <div style={{ position: "absolute", right: 150, top: 150 }}>
+        <SmsPhone
+          contact="Luma Hair Studio"
+          width={340}
+          messages={[{ at: 20, from: "business", text: "Luma Hair Studio: You're booked: Haircut with Sara, Thu 26 Nov at 2:30 PM. Reply C to cancel." }]}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// ---------------------------------------------------------------- 6. reminders + waitlist
+
+export function WaitlistScene() {
+  const frame = useCurrentFrame();
+  const bridge = interpolate(frame, [74, 88], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+  return (
+    <AbsoluteFill style={{ fontFamily }}>
+      <Backdrop />
+      <div style={{ position: "absolute", left: 0, right: 0, top: 60, display: "flex", justifyContent: "center" }}>
+        <Title align="center" eyebrow="Fewer no-shows" title="Cancelled? Offered to the next person in line." size={54} />
+      </div>
+      <div style={{ position: "absolute", left: 270, top: 172 }}>
+        <div style={{ textAlign: "center", fontSize: 20, fontWeight: 700, color: C.muted, marginBottom: 12 }}>Bilal · the day before</div>
+        <SmsPhone
+          contact="Luma Hair Studio"
+          width={300}
+          messages={[
+            { at: 8, from: "business", text: "Reminder from Luma Hair Studio: Haircut with Sara, Thu 26 Nov at 2:30 PM. Reply C to cancel." },
+            { at: 42, from: "customer", text: "C" },
+            { at: 58, from: "business", text: "Luma Hair Studio: your Haircut on Thu 26 Nov at 2:30 PM is cancelled." },
+          ]}
+        />
+      </div>
+      <div style={{ position: "absolute", left: 760, top: 470, width: 400, display: "flex", flexDirection: "column", alignItems: "center", gap: 14, opacity: bridge, transform: `scale(${0.9 + 0.1 * bridge})` }}>
+        <div style={{ fontSize: 64, color: C.brand }}>→</div>
+        <div style={{ background: C.navy, color: "white", borderRadius: 16, padding: "14px 20px", fontSize: 22, fontWeight: 600, textAlign: "center", lineHeight: 1.35 }}>
+          2:30 PM is free again
+          <div style={{ fontSize: 17, fontWeight: 500, color: "rgba(255,255,255,0.75)" }}>Offered to the waitlist, held 30 min</div>
         </div>
-        <div style={{ fontSize: 21, fontWeight: 700, marginBottom: 6 }}>Your appointment is confirmed</div>
-        <div style={{ fontSize: 18, color: C.muted, lineHeight: 1.45 }}>
-          Hi Ayesha, you&apos;re booked for a Haircut with Sara tomorrow at 2:30 PM. Need to change it? Just call — Ava will help.
+      </div>
+      <div style={{ position: "absolute", right: 270, top: 172 }}>
+        <div style={{ textAlign: "center", fontSize: 20, fontWeight: 700, color: C.muted, marginBottom: 12 }}>Hina · on the waitlist</div>
+        <SmsPhone
+          contact="Luma Hair Studio"
+          width={300}
+          messages={[
+            { at: 96, from: "business", text: "Luma Hair Studio: good news, Haircut with Sara is free Thu 26 Nov at 2:30 PM. Reply YES within 30 minutes to book it." },
+            { at: 132, from: "customer", text: "YES" },
+            { at: 148, from: "business", text: "Luma Hair Studio: booked! Haircut with Sara, Thu 26 Nov at 2:30 PM. Reply C to cancel." },
+          ]}
+        />
+      </div>
+    </AbsoluteFill>
+  );
+}
+
+// ---------------------------------------------------------------- 7. who's working
+
+export function TeamScene() {
+  const W = 1400;
+  const L = 140;
+  const T = 230;
+  // Hold on the working hours, then scroll down to the time off.
+  const scroll = useCamera(560, 1260, 90, 70);
+  const a = useEnter(10, 16);
+  const b = useEnter(120, 16);
+  return (
+    <AbsoluteFill style={{ fontFamily }}>
+      <Backdrop />
+      <div style={{ position: "absolute", left: 140, top: 70 }}>
+        <Title eyebrow="Team-aware" title="Knows who's working, and when" size={56} />
+      </div>
+      <div style={{ position: "absolute", left: L, top: T }}>
+        <BrowserFrame src="shots/12-team-full.png" url="luma-hair.receptly.app/dashboard/team" width={W} crop={{ top: (scroll * W) / 2000, height: 760 }} />
+      </div>
+      <div style={{ position: "absolute", right: 90, top: 380, display: "flex", flexDirection: "column", gap: 16 }}>
+        <div style={{ opacity: a, transform: `translateX(${(1 - a) * 30}px)` }}>
+          <Pill bg={C.navy} color="white" style={{ fontSize: 22, padding: "12px 20px" }}>Sara&apos;s own hours</Pill>
+        </div>
+        <div style={{ opacity: b, transform: `translateX(${(1 - b) * 30}px)` }}>
+          <Pill bg={C.navy} color="white" style={{ fontSize: 22, padding: "12px 20px" }}>Lunch & days off</Pill>
         </div>
       </div>
     </AbsoluteFill>
   );
 }
 
-// ---------------------------------------------------------------- 6. overview
+// ---------------------------------------------------------------- 8. what Ava brought in
 
-export function OverviewScene() {
+export function ValueScene() {
   const W = 1560;
   const L = 180;
   const T = 190;
   const m = mapper(L, T, W);
-  const zoom = useCamera(1, 1.06, 240);
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
       <div style={{ position: "absolute", left: 180, top: 56 }}>
-        <Title eyebrow="Dashboard" title="See every call, booking and result" size={54} />
+        <Title eyebrow="Your dashboard" title="See exactly what Ava brought in" size={54} />
       </div>
-      <div style={{ position: "absolute", left: L, top: T, transform: `scale(${zoom})`, transformOrigin: "50% 0%" }}>
+      <div style={{ position: "absolute", left: L, top: T }}>
         <BrowserFrame src="shots/04-overview.png" url="luma-hair.receptly.app/dashboard" width={W} crop={{ height: 860 }} />
       </div>
-      <Callout {...m(795, 213, 371, 213)} label="Appointments booked by AI" delay={24} side="bottom" />
-      <Callout {...m(1310, 720, 645, 420)} label="Every call summarised" delay={70} side="top" />
+      <Callout {...m(795, 213, 372, 262)} label="Booked by Ava this week" delay={14} side="right" />
+      <Callout {...m(401, 213, 371, 262)} label="Answered while you were closed" delay={52} side="bottom" />
     </AbsoluteFill>
   );
 }
 
-// ---------------------------------------------------------------- 7. call detail
+// ---------------------------------------------------------------- 9. safeguards
 
-export function CallDetailScene() {
-  const W = 1560;
-  const L = 180;
-  const T = 190;
-  const m = mapper(L, T, W);
-  const pan = useCamera(0, -120, 240);
-  return (
-    <AbsoluteFill style={{ fontFamily }}>
-      <Backdrop />
-      <div style={{ position: "absolute", left: 180, top: 56 }}>
-        <Title eyebrow="Full transparency" title="Every call, fully transparent" size={54} />
-      </div>
-      <div style={{ position: "absolute", left: L, top: T + pan * 0 }}>
-        <BrowserFrame src="shots/06-call-detail.png" url="luma-hair.receptly.app/dashboard/calls/…" width={W} crop={{ height: 780 }} />
-      </div>
-      <Callout {...m(490, 768, 740, 36)} label="Every action, recorded" delay={22} side="bottom" />
-      <Callout {...m(1265, 230, 662, 114)} label="Instant replies" delay={62} side="bottom" />
-      <Callout {...m(1346, 402, 610, 212)} label="AI summary for staff" delay={100} side="left" />
-    </AbsoluteFill>
-  );
-}
-
-// ---------------------------------------------------------------- 8. knowledge + settings
-
-export function TeachScene() {
-  const frame = useCurrentFrame();
-  const a = useEnter(0, 30);
-  const b = interpolate(frame, [30, 60], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
-  return (
-    <AbsoluteFill style={{ fontFamily }}>
-      <Backdrop />
-      <div style={{ position: "absolute", left: 120, top: 56 }}>
-        <Title eyebrow="Your business, your rules" title="Teach Ava in minutes — no code" size={54} />
-      </div>
-      <div style={{ position: "absolute", left: 120, top: 230, opacity: a, transform: `translateY(${(1 - a) * 40}px) rotate(-1.5deg)` }}>
-        <BrowserFrame src="shots/09-knowledge.png" url="…/dashboard/knowledge" width={1000} />
-      </div>
-      <div style={{ position: "absolute", right: 110, top: 330, opacity: b, transform: `translateY(${(1 - b) * 60}px) rotate(1.5deg)` }}>
-        <BrowserFrame src="shots/10-settings.png" url="…/dashboard/settings" width={880} />
-      </div>
-      <div style={{ position: "absolute", left: 140, top: 150, display: "flex", gap: 16, opacity: b }}>
-        {["FAQs & prices", "Opening hours", "Services & buffers", "Greeting & voice", "Handoff number"].map((t) => (
-          <Pill key={t} bg="white" color={C.text} style={{ border: `1px solid ${C.border}`, fontSize: 20, padding: "10px 18px" }}>
-            ✓ {t}
-          </Pill>
-        ))}
-      </div>
-    </AbsoluteFill>
-  );
-}
-
-// ---------------------------------------------------------------- 9. guarantees
-
-export function GuaranteesScene() {
+export function TrustScene() {
   const frame = useCurrentFrame();
   const cards = [
-    { big: "0", label: "double bookings", sub: "20 callers grab the same slot → exactly 1 booking" },
-    { big: "0", label: "invented times", sub: "Ava only offers times that are actually free" },
-    { big: "✓", label: "private by design", sub: "Callers can only see or change their own appointment" },
-    { big: "24/7", label: "always answered", sub: "Nights, weekends, busy hours — plus instant human handoff" },
+    { big: "0", label: "double bookings", sub: "Two customers never get the same time" },
+    { big: "✓", label: "only real free times", sub: "Ava never guesses or makes up a time" },
+    { big: "→", label: "a person when needed", sub: "Callers who ask are passed to your team" },
+    { big: "24/7", label: "always answered", sub: "Evenings, weekends and busy Saturdays" },
   ];
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop dark />
       <div style={{ position: "absolute", left: 140, top: 190 }}>
-        <Title dark eyebrow="Built to be trusted" title="Reliable by design" sub="Safeguards on every call keep your calendar accurate and your customers happy." size={68} />
+        <Title dark eyebrow="Peace of mind" title="Reliable on every call" sub="Your calendar stays accurate, and your customers are always looked after." size={68} />
       </div>
       <div style={{ position: "absolute", left: 140, right: 140, top: 560, display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 26 }}>
         {cards.map((c, i) => {
-          const p = interpolate(frame - 30 - i * 12, [0, 22], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+          const p = interpolate(frame - 14 - i * 9, [0, 18], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
           return (
-            <div
-              key={c.label}
-              style={{
-                opacity: p,
-                transform: `translateY(${(1 - p) * 40}px)`,
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.14)",
-                borderRadius: 26,
-                padding: "30px 28px",
-                minHeight: 260,
-              }}
-            >
-              <div style={{ fontSize: 84, fontWeight: 800, color: C.primaryFixed, letterSpacing: "-0.04em", lineHeight: 1 }}>{c.big}</div>
+            <div key={c.label} style={{ opacity: p, transform: `translateY(${(1 - p) * 40}px)`, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.14)", borderRadius: 26, padding: "30px 28px", minHeight: 250 }}>
+              <div style={{ fontSize: 80, fontWeight: 800, color: C.primaryFixed, letterSpacing: "-0.04em", lineHeight: 1 }}>{c.big}</div>
               <div style={{ fontSize: 28, fontWeight: 700, color: "white", marginTop: 12 }}>{c.label}</div>
-              <div style={{ fontSize: 20, color: "rgba(255,255,255,0.7)", marginTop: 10, lineHeight: 1.4 }}>{c.sub}</div>
+              <div style={{ fontSize: 20, color: "rgba(255,255,255,0.72)", marginTop: 10, lineHeight: 1.4 }}>{c.sub}</div>
             </div>
           );
         })}
@@ -348,34 +338,33 @@ export function GuaranteesScene() {
   );
 }
 
-// ---------------------------------------------------------------- 10. mobile + handoff
+// ---------------------------------------------------------------- 10. ready in minutes
 
-export function MobileScene() {
-  const a = useSpring(0, 16);
-  const b = useEnter(20, 26);
+export function SetupScene() {
+  const frame = useCurrentFrame();
+  const steps = ["Business details", "Opening hours", "Your team", "Services & prices", "Calendar & texts", "Test call"];
+  const enter = useEnter(0, 22);
   return (
     <AbsoluteFill style={{ fontFamily }}>
       <Backdrop />
-      <div style={{ position: "absolute", left: 140, top: 300, width: 760 }}>
-        <Title
-          eyebrow="Anywhere"
-          title="Your front desk, in your pocket"
-          sub="Check calls, callbacks and today's bookings from your phone between clients."
-          size={64}
-        />
+      <div style={{ position: "absolute", left: 120, top: 70 }}>
+        <Title eyebrow="Easy to start" title="Ready in minutes, no tech skills" size={56} />
       </div>
-      <div style={{ position: "absolute", right: 520, top: 110, transform: `translateY(${(1 - a) * 200}px) rotate(-4deg)` }}>
-        <PhoneFrame src="shots/11-mobile-overview.png" height={860} />
+      <div style={{ position: "absolute", left: 120, top: 215, opacity: enter, transform: `translateY(${(1 - enter) * 40}px) rotate(-1deg)` }}>
+        <BrowserFrame src="shots/14-setup.png" url="luma-hair.receptly.app/dashboard/setup" width={1030} />
       </div>
-      <div style={{ position: "absolute", right: 110, top: 300, opacity: b, transform: `translateX(${(1 - b) * 40}px)`, width: 420 }}>
-        <div style={{ background: "white", borderRadius: 22, padding: "22px 24px", boxShadow: "0 30px 60px -24px rgba(11,27,51,0.45)", borderLeft: `6px solid ${C.error}` }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: C.error, letterSpacing: "0.08em" }}>URGENT · WANTS A PERSON</div>
-          <div style={{ fontSize: 24, fontWeight: 700, marginTop: 6 }}>Bilal Ahmed</div>
-          <div style={{ fontSize: 18, color: C.muted, marginTop: 6, lineHeight: 1.4 }}>“Can someone call me about a bridal package for Saturday?”</div>
-          <div style={{ marginTop: 14 }}>
-            <Pill>Staff notified by email</Pill>
-          </div>
-        </div>
+      <div style={{ position: "absolute", right: 120, top: 280, width: 470, display: "flex", flexDirection: "column", gap: 14 }}>
+        {steps.map((s, i) => {
+          const p = interpolate(frame - 10 - i * 12, [0, 12], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp", easing: ease });
+          return (
+            <div key={s} style={{ opacity: 0.35 + 0.65 * p, display: "flex", alignItems: "center", gap: 16, background: "white", border: `1px solid ${C.border}`, borderRadius: 18, padding: "16px 20px", boxShadow: "0 16px 40px -28px rgba(11,27,51,0.4)" }}>
+              <div style={{ width: 36, height: 36, borderRadius: 18, background: p > 0.5 ? C.primary : C.surfaceContainer, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19, fontWeight: 800, transform: `scale(${0.85 + 0.15 * p})` }}>
+                {p > 0.5 ? "✓" : ""}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 600, color: C.text }}>{s}</div>
+            </div>
+          );
+        })}
       </div>
     </AbsoluteFill>
   );
@@ -385,22 +374,24 @@ export function MobileScene() {
 
 export function OutroScene() {
   const s = useSpring(0, 14);
-  const t = useEnter(14, 26);
-  const u = useEnter(34, 26);
+  const t = useEnter(8, 20);
+  const u = useEnter(24, 20);
   return (
     <AbsoluteFill style={{ fontFamily, alignItems: "center", justifyContent: "center" }}>
       <Backdrop dark />
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 26, textAlign: "center" }}>
+      <div style={{ position: "relative", display: "flex", flexDirection: "column", alignItems: "center", gap: 24, textAlign: "center" }}>
         <div style={{ transform: `scale(${0.6 + 0.4 * s})`, opacity: s }}>
           <BrandMark size={110} />
         </div>
-        <div style={{ opacity: t, transform: `translateY(${(1 - t) * 20}px)`, fontSize: 92, fontWeight: 800, color: "white", letterSpacing: "-0.04em" }}>
-          Never miss a call again.
+        <div style={{ opacity: t, transform: `translateY(${(1 - t) * 20}px)`, fontSize: 30, fontWeight: 700, color: C.primaryFixed, letterSpacing: "0.12em", textTransform: "uppercase" }}>
+          Receptly
         </div>
-        <div style={{ opacity: t, fontSize: 34, color: "rgba(255,255,255,0.8)" }}>Answers · Books · Hands off — 24/7</div>
-        <div style={{ opacity: u, marginTop: 26, display: "flex", gap: 14 }}>
-          {["Phone", "Website", "Google Calendar", "Email confirmations"].map((x) => (
-            <span key={x} style={{ border: "1px solid rgba(255,255,255,0.25)", color: "rgba(255,255,255,0.85)", borderRadius: 999, padding: "8px 18px", fontSize: 20 }}>
+        <div style={{ opacity: t, transform: `translateY(${(1 - t) * 20}px)`, fontSize: 84, fontWeight: 800, color: "white", letterSpacing: "-0.04em", lineHeight: 1.05 }}>
+          Never miss a call,<br />or a customer, again.
+        </div>
+        <div style={{ opacity: u, marginTop: 20, display: "flex", gap: 14 }}>
+          {["Answers every call", "Books your calendar", "Texts & reminders", "Fills cancellations"].map((x) => (
+            <span key={x} style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.3)", color: "white", borderRadius: 999, padding: "10px 22px", fontSize: 22, fontWeight: 500 }}>
               {x}
             </span>
           ))}

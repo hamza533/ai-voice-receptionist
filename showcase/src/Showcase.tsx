@@ -8,36 +8,38 @@ import { AbsoluteFill, interpolate, Sequence, staticFile } from "remotion";
 import { CALL_END, LiveCallScene } from "./LiveCallScene";
 import { Narration } from "./Narration";
 import {
-  BookedScene,
-  CallDetailScene,
-  GuaranteesScene,
+  ConfirmScene,
+  CostScene,
+  HookScene,
   IntroScene,
-  LandingScene,
-  MobileScene,
   OutroScene,
-  OverviewScene,
-  ProblemScene,
-  TeachScene,
+  SetupScene,
+  TeamScene,
+  TrustScene,
+  ValueScene,
+  WaitlistScene,
 } from "./scenes";
 import { vf, type VoId } from "./vo";
 
 type SceneDef = { id: string; el: React.ReactNode; vo?: VoId; lead?: number; tail?: number; min?: number };
 
+// Problem first (the Saturday rush and what it costs), then Ava, then what she does for
+// the business. Plain language only: no product internals on screen or in the voice.
 const DEFS: SceneDef[] = [
-  { id: "intro", el: <IntroScene />, vo: "n_intro", lead: 14, tail: 12, min: 84 },
-  { id: "problem", el: <ProblemScene />, vo: "n_problem", lead: 6, tail: 26 },
-  { id: "landing", el: <LandingScene />, vo: "n_landing", lead: 8, tail: 8 },
+  { id: "hook", el: <HookScene />, vo: "n_hook", lead: 6, tail: 12, min: 150 },
+  { id: "cost", el: <CostScene />, vo: "n_cost", lead: 4, tail: 20, min: 120 },
+  { id: "intro", el: <IntroScene />, vo: "n_intro", lead: 6, tail: 12 },
   { id: "call", el: <LiveCallScene />, min: CALL_END },
-  { id: "booked", el: <BookedScene />, vo: "n_booked", lead: 8, tail: 30, min: 130 },
-  { id: "overview", el: <OverviewScene />, vo: "n_overview", lead: 8, tail: 34, min: 130 },
-  { id: "detail", el: <CallDetailScene />, vo: "n_detail", lead: 8, tail: 26, min: 150 },
-  { id: "teach", el: <TeachScene />, vo: "n_teach", lead: 10, tail: 22 },
-  { id: "guarantees", el: <GuaranteesScene />, vo: "n_trust", lead: 14, tail: 24 },
-  { id: "mobile", el: <MobileScene />, vo: "n_mobile", lead: 10, tail: 22, min: 90 },
-  { id: "outro", el: <OutroScene />, vo: "n_outro", lead: 16, tail: 40, min: 100 },
+  { id: "confirm", el: <ConfirmScene />, vo: "n_confirm", lead: 4, tail: 26, min: 150 },
+  { id: "waitlist", el: <WaitlistScene />, vo: "n_waitlist", lead: 4, tail: 18, min: 200 },
+  { id: "team", el: <TeamScene />, vo: "n_team", lead: 4, tail: 16, min: 180 },
+  { id: "value", el: <ValueScene />, vo: "n_value", lead: 4, tail: 22, min: 160 },
+  { id: "trust", el: <TrustScene />, vo: "n_trust", lead: 6, tail: 16 },
+  { id: "setup", el: <SetupScene />, vo: "n_setup", lead: 4, tail: 18, min: 150 },
+  { id: "outro", el: <OutroScene />, vo: "n_outro", lead: 10, tail: 45, min: 130 },
 ];
 
-export const T = 12; // transition length in frames
+export const T = 10; // transition length in frames
 
 export const SCENES = DEFS.map((d) => ({
   ...d,

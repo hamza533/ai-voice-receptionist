@@ -1,5 +1,6 @@
 // Generates an original, royalty-free background track (public/music.wav):
-// warm pad + plucked arpeggio + soft bass and kick, 92 BPM, C major.
+// warm pad + plucked arpeggio + bass, with a light four-on-the-floor beat (kick, off-beat
+// hats, soft claps), 112 BPM, C major: upbeat but still calm enough to sit under a voice.
 // Usage: node scripts/music.mjs <seconds>
 import { writeFileSync } from "node:fs";
 
@@ -8,7 +9,7 @@ const seconds = Number(process.argv[2] ?? 84);
 const N = Math.floor(SR * seconds);
 const L = new Float32Array(N);
 const R = new Float32Array(N);
-const bpm = 92;
+const bpm = 112;
 const beat = 60 / bpm;
 const bar = beat * 4;
 
@@ -25,19 +26,19 @@ function add(buf, i, v) {
   if (i >= 0 && i < N) buf[i] += v;
 }
 
-// Pad: each chord lasts 2 bars, smooth attack/release, a few soft harmonics.
-const chordLen = bar * 2;
+// Pad: a new chord every bar, smooth attack/release, a few soft harmonics.
+const chordLen = bar;
 for (let c = 0; c * chordLen < seconds; c++) {
   const chord = CHORDS[c % CHORDS.length];
   const t0 = c * chordLen;
   const start = Math.floor(t0 * SR);
-  const len = Math.floor((chordLen + 1.2) * SR);
+  const len = Math.floor((chordLen + 0.6) * SR);
   for (const [k, note] of chord.slice(1).entries()) {
     const f = hz(note);
     const pan = 0.5 + (k - 1.5) * 0.15;
     for (let i = 0; i < len; i++) {
       const t = i / SR;
-      const env = Math.min(1, t / 1.4) * Math.min(1, Math.max(0, (chordLen + 1.2 - t) / 1.2));
+      const env = Math.min(1, t / 0.5) * Math.min(1, Math.max(0, (chordLen + 0.6 - t) / 0.6));
       const lfo = 1 + 0.003 * Math.sin(2 * Math.PI * 0.2 * t + k);
       const s =
         Math.sin(2 * Math.PI * f * lfo * t) * 0.6 +
@@ -52,16 +53,16 @@ for (let c = 0; c * chordLen < seconds; c++) {
   const fb = hz(chord[0]);
   for (let i = 0; i < Math.floor(chordLen * SR); i++) {
     const t = i / SR;
-    const env = Math.min(1, t / 0.05) * Math.exp(-t * 0.35);
+    const env = Math.min(1, t / 0.02) * Math.exp(-t * 0.9);
     const v = Math.sin(2 * Math.PI * fb * t) * env * 0.11;
     add(L, start + i, v);
     add(R, start + i, v);
   }
 }
 
-// Arpeggio: 8th notes cycling chord tones an octave up, from bar 2.
+// Arpeggio: 8th notes cycling chord tones an octave up, from the second bar.
 const eighth = beat / 2;
-for (let n = Math.floor((bar * 2) / eighth); n * eighth < seconds - 4; n++) {
+for (let n = Math.floor(bar / eighth); n * eighth < seconds - 3; n++) {
   const t0 = n * eighth;
   const chord = CHORDS[Math.floor(t0 / chordLen) % CHORDS.length];
   const tones = chord.slice(1);
@@ -73,7 +74,7 @@ for (let n = Math.floor((bar * 2) / eighth); n * eighth < seconds - 4; n++) {
   const accent = n % 4 === 0 ? 1 : 0.7;
   for (let i = 0; i < Math.floor(0.6 * SR); i++) {
     const t = i / SR;
-    const env = Math.min(1, t / 0.004) * Math.exp(-t * 7);
+    const env = Math.min(1, t / 0.004) * Math.exp(-t * 9);
     // triangle-ish pluck
     const ph = (f * t) % 1;
     const tri = 1 - 4 * Math.abs(ph - 0.5);
@@ -83,16 +84,45 @@ for (let n = Math.floor((bar * 2) / eighth); n * eighth < seconds - 4; n++) {
   }
 }
 
-// Soft kick on beats 1 and 3 between 8 s and the last 6 s.
-for (let b = Math.ceil(8 / beat); b * beat < seconds - 6; b++) {
-  if (b % 2) continue;
-  const start = Math.floor(b * beat * SR);
-  for (let i = 0; i < Math.floor(0.25 * SR); i++) {
+// Beat: kick on every beat from bar 3, hats on the off-beats, soft claps on 2 and 4 from
+// bar 5, all stopping 3 s before the end so the track resolves on the pad.
+let seed = 7;
+const noise = () => {
+  seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+  return seed / 0x3fffffff - 1;
+};
+const beatsEnd = seconds - 3;
+for (let b = 8; b * beat < beatsEnd; b++) {
+  const kick = Math.floor(b * beat * SR);
+  for (let i = 0; i < Math.floor(0.22 * SR); i++) {
     const t = i / SR;
-    const f = 50 + 70 * Math.exp(-t * 30);
-    const v = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 14) * 0.16;
-    add(L, start + i, v);
-    add(R, start + i, v);
+    const f = 48 + 80 * Math.exp(-t * 32);
+    const v = Math.sin(2 * Math.PI * f * t) * Math.exp(-t * 16) * 0.15;
+    add(L, kick + i, v);
+    add(R, kick + i, v);
+  }
+  // closed hat on the off-beat (high-passed noise burst)
+  const hat = Math.floor((b + 0.5) * beat * SR);
+  let prev = 0;
+  for (let i = 0; i < Math.floor(0.05 * SR); i++) {
+    const t = i / SR;
+    const n = noise();
+    const hp = n - prev;
+    prev = n;
+    const v = hp * Math.exp(-t * 90) * 0.035;
+    add(L, hat + i, v * 0.8);
+    add(R, hat + i, v * 1.2);
+  }
+  // soft clap on 2 and 4
+  if (b >= 16 && b % 2 === 1) {
+    const clap = Math.floor(b * beat * SR);
+    for (let i = 0; i < Math.floor(0.18 * SR); i++) {
+      const t = i / SR;
+      const n = noise();
+      const v = (n * 0.7 + Math.sin(2 * Math.PI * 190 * t) * 0.3) * Math.exp(-t * 28) * 0.05;
+      add(L, clap + i, v);
+      add(R, clap + i, v);
+    }
   }
 }
 
@@ -100,7 +130,7 @@ for (let b = Math.ceil(8 / beat); b * beat < seconds - 6; b++) {
 let peak = 0;
 for (let i = 0; i < N; i++) {
   const t = i / SR;
-  const fade = Math.min(1, t / 2) * Math.min(1, (seconds - t) / 4);
+  const fade = Math.min(1, t / 1.2) * Math.min(1, (seconds - t) / 3);
   L[i] = Math.tanh(L[i] * 1.2) * fade;
   R[i] = Math.tanh(R[i] * 1.2) * fade;
   peak = Math.max(peak, Math.abs(L[i]), Math.abs(R[i]));

@@ -44,3 +44,6 @@ Thumbs.db
 showcase/out/
 showcase/public/music.wav
 showcase/public/shots/
+
+# Portfolio package (built locally from showcase/; large binaries)
+portfolio/

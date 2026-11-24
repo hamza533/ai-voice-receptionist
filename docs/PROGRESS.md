@@ -42,7 +42,7 @@ owner's third-party keys is built, tested and green.
 5. Deploy the demo: Neon (DATABASE_URL), Render (`render.yaml`, DEMO_MODE=true), Vercel
    (`web/`, env `API_URL=https://<render-app>.onrender.com`), LiveKit Cloud agent
    (`lk agent create` with the `agent` Docker target). Set `ALLOWED_ORIGINS` to the Vercel URL.
-6. Showcase video (82 s, voiced, client-friendly: no stack/API names) and README GIF are in
+6. Showcase video (86 s, problem-first story, warm narrator, no stack/API names) and README GIF are in
    `docs/images/` (built from the running app by `showcase/`). Optional: re-record the call
    dialogue with a female caller voice (`showcase/scripts/voiceover.py`, TTS daily quota).
 
@@ -61,6 +61,9 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-25 – Claude Code – New showcase video (86 s): problem-first story, warm narrator
+  (Sulafat), female caller, text-message and waitlist scenes, faster pace and 112 BPM music;
+  fresh screenshots incl. team, waitlist and setup; portfolio zip (video + screenshots).
 - 2026-11-24 – Claude Code – Built Phase 1 & 2 on feat/phase-1-2: staff shifts + time off +
   holidays UI, Twilio texts and reminders with signed replies, waitlist (agent tool, offers,
   hold/expiry, dashboard), value-booked overview card, Google Calendar OAuth connect, setup

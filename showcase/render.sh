@@ -10,9 +10,17 @@ SHELL_BIN=$(ls -d /ms-playwright/chromium_headless_shell-*/chrome-*/headless_she
 [ -n "$SHELL_BIN" ] || SHELL_BIN=$(ls -d /ms-playwright/chromium-*/chrome-linux*/chrome | head -1)
 echo "browser: $SHELL_BIN"
 node scripts/music.mjs 100
+# Faster pace with a natural voice: time-stretch the clips (pitch kept), see src/vo.ts.
+FF=node_modules/@remotion/compositor-linux-x64-gnu/ffmpeg
+mkdir -p public/vo/fast
+for f in public/vo/n_*.wav public/vo/c*.wav; do
+  id=$(basename "$f" .wav)
+  case "$id" in n_*) r=1.1 ;; *) r=1.06 ;; esac
+  "$FF" -v error -y -i "$f" -af "atempo=$r" "public/vo/fast/$id.wav"
+done
 mkdir -p /sc/out
 if [ "$1" = "stills" ]; then
-  for f in 60 220 420 700 950 1150 1330 1560 1760 1950 2130; do
+  for f in ${STILLS:-60 220 420 700 950 1150 1330 1560 1760 1950 2130}; do
     npx remotion still Showcase /sc/out/still-$f.png --frame=$f --scale=0.5 \
       --browser-executable="$SHELL_BIN" 2>&1 | tail -1
   done

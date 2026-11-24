@@ -31,6 +31,9 @@ def _scheduled_jobs(settings: Settings, now: datetime) -> list[tuple[str, str, d
     them every loop is harmless: each day's job is inserted once."""
     today = now.date().isoformat()
     jobs = [("purge", f"purge:{today}", now)]
+    # Every 15 minutes: offer newly free times to the waitlist.
+    quarter = f"{now:%Y-%m-%dT%H}:{now.minute // 15}"
+    jobs.append(("waitlist_sweep", f"waitlist_sweep:{quarter}", now))
     if settings.demo_mode:
         # 21:00 UTC is 02:00 in Karachi: quiet hours for the demo business.
         reset_at = datetime.combine(now.date(), datetime.min.time(), tzinfo=UTC) + timedelta(

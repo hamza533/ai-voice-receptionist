@@ -22,7 +22,8 @@ test("owner sets a person's hours and a weekly break on the Team page", async ({
   await expect(page.getByText(/hours saved/)).toBeVisible();
 
   const note = `Lunch ${Date.now()}`;
-  await page.getByLabel("Time off type").selectOption("weekly");
+  await page.getByLabel("Time off type").click();
+  await page.getByRole("option", { name: "Weekly break (e.g. lunch)" }).click();
   await page.getByPlaceholder("Holiday, training, lunch…").fill(note);
   await page.getByTestId("add-time-off").click();
   await expect(page.getByTestId("time-off-list")).toContainText(note);
@@ -48,7 +49,8 @@ test("staff add someone to the waitlist and see the new settings", async ({ page
   await page.getByLabel("Name").fill(name);
   await page.getByLabel("Mobile number").fill("+92 300 5550101");
   await page.getByLabel("Day", { exact: true }).fill("2030-01-15");
-  await page.getByLabel("Service").selectOption({ label: "Haircut" });
+  await page.getByLabel("Service").click();
+  await page.getByRole("option", { name: "Haircut", exact: true }).click();
   await page.getByRole("button", { name: "Add to waitlist" }).click();
   await expect(page.getByTestId("waitlist")).toContainText(name);
   await page.getByRole("button", { name: `Remove ${name}` }).click();

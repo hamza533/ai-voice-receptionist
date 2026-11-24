@@ -18,8 +18,8 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { selectClass } from "@/components/dashboard/calendar-picker";
 import { useDashboard } from "@/components/dashboard/context";
+import { OptionSelect } from "@/components/dashboard/option-select";
 import { toWeek, type Week, WeekEditor, weekError, weekRows } from "@/components/dashboard/week-editor";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -160,13 +160,13 @@ function BusinessStep({ onDone }: { onDone: () => void }) {
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="s-tz">Time zone</Label>
-          <select id="s-tz" className={cn(selectClass, "h-10")} value={form.timezone} onChange={(e) => set("timezone", e.target.value)}>
-            {zones.map((z) => (
-              <option key={z} value={z}>
-                {z.replace(/_/g, " ")}
-              </option>
-            ))}
-          </select>
+          <OptionSelect
+            id="s-tz"
+            value={form.timezone}
+            onChange={(v) => set("timezone", v)}
+            className="h-10"
+            options={zones.map((z) => ({ value: z, label: z.replace(/_/g, " ") }))}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="s-cur">Currency</Label>

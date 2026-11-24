@@ -21,18 +21,12 @@ from app.config import Settings
 from app.jobs.queue import enqueue
 from app.models import Appointment, BusinessConfig, Service, Staff, WaitlistEntry
 from app.services import booking as booking_svc
-from app.services.availability import slot_is_free
+from app.services.availability import find_slots, slot_is_free
 from app.services.calendar import CalendarClient
 from app.services.privacy import normalize_phone, phones_match
+from app.services.timeutil import TIME_WINDOWS, local_today
 
 log = logging.getLogger(__name__)
-
-TIME_WINDOWS: dict[str, tuple[time | None, time | None]] = {
-    "morning": (None, time(12, 0)),
-    "afternoon": (time(12, 0), time(17, 0)),
-    "evening": (time(17, 0), None),
-    "any": (None, None),
-}
 
 
 def slot_key(staff_id: int, start_utc: datetime) -> str:
@@ -98,8 +92,15 @@ def match_freed_slot(
     """Offer a freed time to the first suitable person waiting. Commits the offer and queues
     the offer text and the hold expiry in the same transaction."""
     biz = db.get(BusinessConfig, 1)
-    staff = db.get(Staff, staff_id)
-    if biz is None or staff is None or not biz.waitlist_enabled or not staff.active:
+    if biz is None or not biz.waitlist_enabled:
+        return None
+    # Lock the staff row (as booking does) so two jobs for the same freed time can't both
+    # offer it, then skip the time if someone already holds it.
+    staff = db.execute(
+        select(Staff).where(Staff.id == staff_id).with_for_update()
+    ).scalar_one_or_none()
+    if staff is None or not staff.active or _held(db, staff_id, start_utc, now):
+        db.rollback()
         return None
     local = start_utc.astimezone(ZoneInfo(biz.timezone))
     key = slot_key(staff_id, start_utc)
@@ -148,6 +149,73 @@ def match_freed_slot(
         return entry
     db.rollback()
     return None
+
+
+def _held(db: Session, staff_id: int, start_utc: datetime, now: datetime) -> bool:
+    return (
+        db.scalar(
+            select(WaitlistEntry.id).where(
+                WaitlistEntry.status == "offered",
+                WaitlistEntry.offer_staff_id == staff_id,
+                WaitlistEntry.offer_start_utc == start_utc,
+                WaitlistEntry.offer_expires_at > now,
+            )
+        )
+        is not None
+    )
+
+
+def sweep(db: Session, calendar: CalendarClient, settings: Settings, now: datetime) -> int:
+    """Offer open times to people waiting, whatever freed them: time off removed, hours
+    widened, a closure or calendar event deleted (cancellations are matched immediately).
+    Runs every 15 minutes. Returns the number of offers made."""
+    biz = db.get(BusinessConfig, 1)
+    if biz is None or not biz.waitlist_enabled:
+        return 0
+    zone = ZoneInfo(biz.timezone)
+    today = local_today(biz.timezone, now)
+    last = today + timedelta(days=settings.booking_window_days)
+    entries = list(
+        db.scalars(
+            select(WaitlistEntry)
+            .where(
+                WaitlistEntry.status == "waiting",
+                WaitlistEntry.day >= today,
+                WaitlistEntry.day <= last,
+            )
+            .order_by(WaitlistEntry.created_at, WaitlistEntry.id)
+        )
+    )
+    offers = 0
+    for entry in entries:
+        db.refresh(entry)
+        if entry.status != "waiting":  # offered a time earlier in this sweep
+            continue
+        after, before = TIME_WINDOWS.get(entry.time_of_day, (None, None))
+        slots = find_slots(
+            db,
+            calendar,
+            settings,
+            service=entry.service,
+            date_from=entry.day,
+            date_to=entry.day,
+            staff_id=entry.staff_id,
+            now_utc=now,
+            after_local_time=after,
+            before_local_time=before,
+        )
+        for slot in slots:
+            if slot.start_utc.astimezone(zone).date() != entry.day:
+                continue
+            if slot_key(slot.staff_id, slot.start_utc) in (entry.offered_slots or []):
+                continue
+            made = match_freed_slot(
+                db, calendar, settings, staff_id=slot.staff_id, start_utc=slot.start_utc, now=now
+            )
+            if made is not None:
+                offers += 1
+                break
+    return offers
 
 
 def accept_offer(

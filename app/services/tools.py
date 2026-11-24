@@ -16,7 +16,7 @@ import hashlib
 import re
 import time as _time
 import uuid
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -32,7 +32,14 @@ from app.services.availability import find_slots
 from app.services.calendar import CalendarClient
 from app.services.money import format_money
 from app.services.privacy import normalize_email, normalize_phone, redact
-from app.services.timeutil import WEEKDAYS, ResolvedDate, resolve_date, speak_time, utcnow
+from app.services.timeutil import (
+    TIME_WINDOWS,
+    WEEKDAYS,
+    ResolvedDate,
+    resolve_date,
+    speak_time,
+    utcnow,
+)
 
 ToolStatus = Literal[
     "ok", "error", "not_found", "unavailable", "needs_confirmation", "invalid", "transferred"
@@ -253,14 +260,6 @@ def _resolve(ctx: ToolContext, phrase: str) -> ResolvedDate:
     return resolve_date(phrase, ctx.tz, ctx.now)
 
 
-_TIME_WINDOWS = {
-    "morning": (None, time(12, 0)),
-    "afternoon": (time(12, 0), time(17, 0)),
-    "evening": (time(17, 0), None),
-    "any": (None, None),
-}
-
-
 # ---------------------------------------------------------------- tools
 
 
@@ -401,7 +400,7 @@ def check_availability(ctx: ToolContext, args: AvailabilityIn) -> ToolResult:
     date_to = end.date if end else start.date + timedelta(days=2)
     if date_to < start.date:
         date_to = start.date
-    after, before = _TIME_WINDOWS[args.time_of_day]
+    after, before = TIME_WINDOWS[args.time_of_day]
     slots = find_slots(
         ctx.db,
         ctx.calendar,

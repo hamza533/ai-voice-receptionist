@@ -439,3 +439,75 @@ def test_google_connect_stores_an_encrypted_refresh_token(client, db, admin, mon
     assert db.scalar(select(func.count(Integration.id))) == 0
     get_settings.cache_clear()
     cal.invalidate_connection_cache()
+
+
+# ---------------------------------------------------------------- review fixes
+
+
+def test_resaving_a_shift_with_the_same_start_works(client, db, admin) -> None:  # type: ignore[no-untyped-def]
+    headers = login(client, admin["email"], admin["password"])
+    sara = _staff(db, "Sara")
+    url = f"/api/settings/staff/{sara.id}/shifts"
+    first = [{"weekday": 0, "start_time": "10:00", "end_time": "18:00"}]
+    assert client.put(url, headers=headers, json=first).status_code == 200
+    changed = [{"weekday": 0, "start_time": "10:00", "end_time": "17:00"}]
+    r = client.put(url, headers=headers, json=changed)
+    assert r.status_code == 200, r.text
+    assert r.json()["shifts"] == [{"weekday": 0, "start_time": "10:00:00", "end_time": "17:00:00"}]
+
+
+def test_a_freed_time_is_offered_to_one_person_at_a_time(db, settings, calendar) -> None:  # type: ignore[no-untyped-def]
+    from app.services import waitlist
+
+    sara = _staff(db, "Sara")
+    haircut = next(s for s in sara.services if s.name == "Haircut")
+    waitlist.add_entry(db, name="B", phone="+923002222222", service=haircut, day=TUESDAY)
+    waitlist.add_entry(db, name="C", phone="+923003333333", service=haircut, day=TUESDAY)
+    start = datetime(2025, 11, 25, 11, 0, tzinfo=TZ)
+    first = waitlist.match_freed_slot(
+        db, calendar, settings, staff_id=sara.id, start_utc=start, now=NOW
+    )
+    again = waitlist.match_freed_slot(
+        db, calendar, settings, staff_id=sara.id, start_utc=start, now=NOW
+    )
+    assert first is not None and again is None
+    assert db.scalar(select(func.count()).where(WaitlistEntry.status == "offered")) == 1
+
+
+def test_booking_another_service_keeps_the_waitlist_entry(db, settings, calendar, frozen) -> None:  # type: ignore[no-untyped-def]
+    from app.services import waitlist
+
+    sara = _staff(db, "Sara")
+    colour = next(s for s in sara.services if s.name == "Hair colour")
+    entry, _ = waitlist.add_entry(
+        db, name="Ayesha", phone="+923001112233", service=colour, day=TUESDAY
+    )
+    ctx = _ctx(db, settings, calendar, _call(db))  # same caller number
+    assert _book(ctx, _offer(ctx, staff="Sara")[0]).status == "ok"  # a Haircut on Tuesday
+    db.expire_all()
+    assert db.get(WaitlistEntry, entry.id).status == "waiting"
+
+
+def test_sweep_offers_times_freed_without_a_cancellation(db, settings, calendar) -> None:  # type: ignore[no-untyped-def]
+    from app.services import waitlist
+
+    sara = _staff(db, "Sara")
+    haircut = next(s for s in sara.services if s.name == "Haircut")
+    off = TimeOff(
+        staff_id=sara.id,
+        kind="once",
+        start_utc=datetime(2025, 11, 25, 0, 0, tzinfo=TZ),
+        end_utc=datetime(2025, 11, 26, 0, 0, tzinfo=TZ),
+    )
+    db.add(off)
+    db.commit()
+    entry, _ = waitlist.add_entry(
+        db, name="B", phone="+923002222222", service=haircut, day=TUESDAY, staff=sara
+    )
+    assert waitlist.sweep(db, calendar, settings, NOW) == 0  # Sara is off all Tuesday
+    db.delete(off)
+    db.commit()
+    assert waitlist.sweep(db, calendar, settings, NOW) == 1
+    db.expire_all()
+    offered = db.get(WaitlistEntry, entry.id)
+    assert offered.status == "offered" and offered.offer_staff_id == sara.id

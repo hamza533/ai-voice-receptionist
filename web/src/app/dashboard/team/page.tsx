@@ -5,8 +5,9 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { CalendarPicker, selectClass } from "@/components/dashboard/calendar-picker";
+import { CalendarPicker } from "@/components/dashboard/calendar-picker";
 import { useDashboard } from "@/components/dashboard/context";
+import { OptionSelect } from "@/components/dashboard/option-select";
 import { toWeek, type Week, WeekEditor, weekError, weekRows } from "@/components/dashboard/week-editor";
 import { Pill } from "@/components/outcome-badge";
 import { Button } from "@/components/ui/button";
@@ -353,10 +354,15 @@ function TimeOffCard({ member, isAdmin }: { member: Staff; isAdmin: boolean }) {
           <div className="flex flex-wrap gap-3">
             <div className="flex min-w-40 flex-col gap-1">
               <Label className="text-xs">Type</Label>
-              <select className={selectClass} value={kind} onChange={(e) => setKind(e.target.value as "once" | "weekly")} aria-label="Time off type">
-                <option value="once">Day(s) off / appointment</option>
-                <option value="weekly">Weekly break (e.g. lunch)</option>
-              </select>
+              <OptionSelect
+                value={kind}
+                onChange={(v) => setKind(v as "once" | "weekly")}
+                ariaLabel="Time off type"
+                options={[
+                  { value: "once", label: "Day(s) off / appointment" },
+                  { value: "weekly", label: "Weekly break (e.g. lunch)" },
+                ]}
+              />
             </div>
             {kind === "once" ? (
               <>
@@ -375,13 +381,12 @@ function TimeOffCard({ member, isAdmin }: { member: Staff; isAdmin: boolean }) {
             ) : (
               <div className="flex flex-col gap-1">
                 <Label className="text-xs">Day</Label>
-                <select className={selectClass} value={weekday} onChange={(e) => setWeekday(Number(e.target.value))} aria-label="Weekday">
-                  {WEEKDAYS.map((d, i) => (
-                    <option key={d} value={i}>
-                      {d}
-                    </option>
-                  ))}
-                </select>
+                <OptionSelect
+                  value={String(weekday)}
+                  onChange={(v) => setWeekday(Number(v))}
+                  ariaLabel="Weekday"
+                  options={WEEKDAYS.map((d, i) => ({ value: String(i), label: d }))}
+                />
               </div>
             )}
             {kind === "weekly" || !allDay ? (

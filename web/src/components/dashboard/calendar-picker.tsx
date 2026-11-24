@@ -1,11 +1,11 @@
 "use client";
 
+import { OptionSelect } from "@/components/dashboard/option-select";
 import { Input } from "@/components/ui/input";
 import type { GoogleCalendarItem, Integrations } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 
-export const selectClass =
-  "h-9 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-60";
+const DEFAULT = "__default__";
 
 /**
  * Pick a calendar. With Google connected (Settings → Integrations) it is a list of the
@@ -33,16 +33,17 @@ export function CalendarPicker({
   if (connected && calendars) {
     const known = calendars.some((c) => c.id === value);
     return (
-      <select className={selectClass} value={value} disabled={disabled} onChange={(e) => onChange(e.target.value)} aria-label="Calendar">
-        <option value="">{emptyLabel}</option>
-        {calendars.map((c) => (
-          <option key={c.id} value={c.id}>
-            {c.name}
-            {c.primary ? " (main)" : ""}
-          </option>
-        ))}
-        {value && !known ? <option value={value}>{value}</option> : null}
-      </select>
+      <OptionSelect
+        value={value || DEFAULT}
+        onChange={(v) => onChange(v === DEFAULT ? "" : v)}
+        disabled={disabled}
+        ariaLabel="Calendar"
+        options={[
+          { value: DEFAULT, label: emptyLabel },
+          ...calendars.map((c) => ({ value: c.id, label: c.primary ? `${c.name} (main)` : c.name })),
+          ...(value && !known ? [{ value, label: value }] : []),
+        ]}
+      />
     );
   }
   return (

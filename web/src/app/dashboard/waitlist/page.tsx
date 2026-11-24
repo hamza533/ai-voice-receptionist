@@ -4,8 +4,8 @@ import { CalendarCheck2, Hourglass, ListChecks, Loader2, Phone, Plus, X } from "
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { selectClass } from "@/components/dashboard/calendar-picker";
 import { useDashboard } from "@/components/dashboard/context";
+import { OptionSelect } from "@/components/dashboard/option-select";
 import { Pill } from "@/components/outcome-badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -175,37 +175,36 @@ function AddForm({ onAdded }: { onAdded: () => void }) {
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="w-service" className="text-xs">Service</Label>
-        <select id="w-service" className={selectClass} value={form.service_id} onChange={(e) => set({ service_id: Number(e.target.value), staff_id: 0 })}>
-          <option value={0}>Choose…</option>
-          {services?.filter((s) => s.active).map((s) => (
-            <option key={s.id} value={s.id}>
-              {s.name}
-            </option>
-          ))}
-        </select>
+        <OptionSelect
+          id="w-service"
+          value={form.service_id ? String(form.service_id) : ""}
+          onChange={(v) => set({ service_id: Number(v), staff_id: 0 })}
+          placeholder="Choose…"
+          options={(services ?? []).filter((s) => s.active).map((s) => ({ value: String(s.id), label: s.name }))}
+        />
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="w-staff" className="text-xs">With</Label>
-        <select id="w-staff" className={selectClass} value={form.staff_id} onChange={(e) => set({ staff_id: Number(e.target.value) })}>
-          <option value={0}>Anyone</option>
-          {staff
-            ?.filter((m) => m.active && (!service || service.staff_ids.includes(m.id)))
-            .map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name}
-              </option>
-            ))}
-        </select>
+        <OptionSelect
+          id="w-staff"
+          value={String(form.staff_id)}
+          onChange={(v) => set({ staff_id: Number(v) })}
+          options={[
+            { value: "0", label: "Anyone" },
+            ...(staff ?? [])
+              .filter((m) => m.active && (!service || service.staff_ids.includes(m.id)))
+              .map((m) => ({ value: String(m.id), label: m.name })),
+          ]}
+        />
       </div>
       <div className="flex flex-col gap-1">
         <Label htmlFor="w-when" className="text-xs">Time of day</Label>
-        <select id="w-when" className={selectClass} value={form.time_of_day} onChange={(e) => set({ time_of_day: e.target.value })}>
-          {Object.entries(WHEN).map(([k, v]) => (
-            <option key={k} value={k}>
-              {v}
-            </option>
-          ))}
-        </select>
+        <OptionSelect
+          id="w-when"
+          value={form.time_of_day}
+          onChange={(v) => set({ time_of_day: v })}
+          options={Object.entries(WHEN).map(([k, v]) => ({ value: k, label: v }))}
+        />
       </div>
       <Button
         onClick={() => void add()}

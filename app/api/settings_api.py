@@ -201,7 +201,11 @@ def put_shifts(
         for a, b in itertools.pairwise(shifts):
             if b.start_time < a.end_time:
                 raise HTTPException(422, "Shifts on the same day can't overlap")
-    s.shifts = [StaffShift(**sh.model_dump()) for sh in body]
+    # Delete first: the unit of work would insert before deleting orphans, and a shift kept
+    # at the same weekday + start would then collide with its old row.
+    s.shifts.clear()
+    db.flush()
+    s.shifts.extend(StaffShift(**sh.model_dump()) for sh in body)
     _commit(db)
     db.refresh(s)
     return s

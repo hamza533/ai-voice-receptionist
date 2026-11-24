@@ -7,7 +7,6 @@ import uuid
 from collections.abc import Callable
 from datetime import datetime, timedelta
 from typing import Any, Literal
-from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
@@ -36,7 +35,7 @@ from app.services import waitlist
 from app.services.calendar import calendar_for_staff, default_calendar_id, get_calendar
 from app.services.email import send_email
 from app.services.sms import send_sms
-from app.services.timeutil import local_today, speak_time, utcnow
+from app.services.timeutil import local_today, short_when, speak_time, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -189,18 +188,13 @@ def handle_send_booking_email(db: Session, settings: Settings, payload: dict[str
     )
 
 
-def _short_when(start_utc: datetime, tz: str) -> str:
-    local = start_utc.astimezone(ZoneInfo(tz))
-    return f"{local:%a %d %b} at {local:%I:%M %p}".replace(" 0", " ")
-
-
 def handle_send_booking_sms(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
     appt = db.get(Appointment, uuid.UUID(payload["appointment_id"]))
     biz = db.get(BusinessConfig, 1)
     if appt is None or not appt.phone or biz is None or not biz.sms_confirmations:
         return
     change = payload["change"]
-    when = _short_when(appt.start_utc, biz.timezone)
+    when = short_when(appt.start_utc, biz.timezone)
     lines = {
         "booked": f"You're booked: {appt.service.name} with {appt.staff.name}, {when}.",
         "rescheduled": f"Your {appt.service.name} with {appt.staff.name} is now {when}.",
@@ -228,7 +222,7 @@ def handle_send_reminder(db: Session, settings: Settings, payload: dict[str, Any
         return
     if appt.start_utc.isoformat() != payload["start_utc"] or appt.start_utc <= utcnow():
         return
-    when = _short_when(appt.start_utc, biz.timezone)
+    when = short_when(appt.start_utc, biz.timezone)
     send_sms(
         db,
         settings,
@@ -262,6 +256,10 @@ def handle_waitlist_expire(db: Session, settings: Settings, payload: dict[str, A
         )
 
 
+def handle_waitlist_sweep(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
+    waitlist.sweep(db, get_calendar(settings), settings, utcnow())
+
+
 def handle_send_waitlist_offer(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
     entry = db.get(WaitlistEntry, int(payload["entry_id"]))
     biz = db.get(BusinessConfig, 1)
@@ -269,7 +267,7 @@ def handle_send_waitlist_offer(db: Session, settings: Settings, payload: dict[st
         return
     if entry.offer_staff is None or not entry.offer_expires_at:
         return
-    when = _short_when(entry.offer_start_utc, biz.timezone)
+    when = short_when(entry.offer_start_utc, biz.timezone)
     send_sms(
         db,
         settings,
@@ -375,6 +373,7 @@ HANDLERS: dict[str, Callable[[Session, Settings, dict[str, Any]], None]] = {
     "send_waitlist_offer": handle_send_waitlist_offer,
     "waitlist_match": handle_waitlist_match,
     "waitlist_expire": handle_waitlist_expire,
+    "waitlist_sweep": handle_waitlist_sweep,
     "purge": handle_purge,
     "demo_reset": handle_demo_reset,
 }

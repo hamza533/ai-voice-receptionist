@@ -137,13 +137,16 @@ def _slot_freed(db: Session, staff_id: int, start_utc: datetime) -> None:
 
 
 def _close_waitlist(db: Session, appt: Appointment, tz: str) -> None:
-    """Someone on the waitlist who books that day by any route is no longer waiting."""
+    """Someone waiting for this service on this day who books it by any route is no
+    longer waiting (other services they are waiting for stay open)."""
     if not appt.phone:
         return
     day = appt.start_utc.astimezone(ZoneInfo(tz)).date()
     rows = db.scalars(
         select(WaitlistEntry).where(
-            WaitlistEntry.day == day, WaitlistEntry.status.in_(("waiting", "offered"))
+            WaitlistEntry.day == day,
+            WaitlistEntry.service_id == appt.service_id,
+            WaitlistEntry.status.in_(("waiting", "offered")),
         )
     )
     ids = [w.id for w in rows if phones_match(w.phone, appt.phone)]

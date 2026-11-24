@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
@@ -33,6 +33,21 @@ def to_local(dt: datetime, tz: str) -> datetime:
 
 def local_today(tz: str, now: datetime | None = None) -> date:
     return to_local(now or utcnow(), tz).date()
+
+
+# Caller-facing parts of the day (business-local), shared by availability and the waitlist.
+TIME_WINDOWS: dict[str, tuple[time | None, time | None]] = {
+    "morning": (None, time(12, 0)),
+    "afternoon": (time(12, 0), time(17, 0)),
+    "evening": (time(17, 0), None),
+    "any": (None, None),
+}
+
+
+def short_when(dt: datetime, tz: str) -> str:
+    """'Tue 25 Nov at 2:30 PM' in the business time zone (for texts)."""
+    loc = to_local(dt, tz)
+    return f"{loc:%a %d %b} at {loc:%I:%M %p}".replace(" 0", " ")
 
 
 def speak_time(dt: datetime, tz: str) -> str:

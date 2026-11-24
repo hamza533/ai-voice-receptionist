@@ -12,7 +12,6 @@ in the same conversation instead of by a second message.
 from __future__ import annotations
 
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -21,11 +20,7 @@ from app.models import BusinessConfig
 from app.services import booking as booking_svc
 from app.services import waitlist
 from app.services.calendar import CalendarClient
-
-
-def _when(dt: datetime, tz: str) -> str:
-    local = dt.astimezone(ZoneInfo(tz))
-    return f"{local:%a %d %b} at {local:%I:%M %p}".replace(" 0", " ")
+from app.services.timeutil import short_when
 
 
 def handle_reply(
@@ -53,7 +48,7 @@ def handle_reply(
             return f"{name}: sorry, that time was just taken. You're still on the waitlist."
         return (
             f"{name}: booked! {appt.service.name} with {appt.staff.name}, "
-            f"{_when(appt.start_utc, tz)}. Reply C to cancel."
+            f"{short_when(appt.start_utc, tz)}. Reply C to cancel."
         )
 
     if word == "C":
@@ -70,6 +65,6 @@ def handle_reply(
             booking_svc.cancel(db, calendar, settings, appt, confirm_sms=False)
         except booking_svc.BookingError:
             return f"{name}: sorry, we couldn't cancel it just now.{call_us}"
-        return f"{name}: your {appt.service.name} on {_when(appt.start_utc, tz)} is cancelled."
+        return f"{name}: your {appt.service.name} on {short_when(appt.start_utc, tz)} is cancelled."
 
     return f"{name}: reply C to cancel your next appointment.{call_us}"

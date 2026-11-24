@@ -1,21 +1,29 @@
 "use client";
 
 import {
+  BellRing,
   Bot,
   Building2,
+  CalendarCheck2,
   CalendarCog,
+  CalendarX2,
   Check,
   Clock3,
   Headset,
   Loader2,
+  MessageSquareText,
   Plug,
   Plus,
   Save,
   Scissors,
+  Trash2,
   Users,
 } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
+
+import { CalendarPicker } from "@/components/dashboard/calendar-picker";
 
 import { useDashboard } from "@/components/dashboard/context";
 import { Pill } from "@/components/outcome-badge";
@@ -26,7 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { api, json } from "@/lib/api";
 import { WEEKDAYS } from "@/lib/format";
-import type { Business, Hours, Service, Staff } from "@/lib/types";
+import type { Business, Holiday, Hours, Integrations, Service, Staff } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
 
@@ -160,6 +168,59 @@ export default function SettingsPage() {
           <Field label="Email signature" value={form.email_signature} onChange={(v) => set("email_signature", v)} />
         </Section>
 
+        <Section icon={<BellRing />} title="Customer notifications & waitlist">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Toggle
+              label="Text a confirmation"
+              hint="When a booking is made, moved or cancelled."
+              checked={form.sms_confirmations}
+              onChange={(v) => set("sms_confirmations", v)}
+            />
+            <Toggle
+              label="Text a reminder"
+              hint="Customers can reply C to cancel, freeing the time for others."
+              checked={form.sms_reminders}
+              onChange={(v) => set("sms_reminders", v)}
+            >
+              <div className="flex items-center gap-2 text-sm">
+                <Input
+                  type="number"
+                  min={1}
+                  max={72}
+                  value={form.reminder_hours}
+                  onChange={(e) => set("reminder_hours", Number(e.target.value))}
+                  className="h-8 w-20"
+                  aria-label="Reminder hours before"
+                />
+                hours before
+              </div>
+            </Toggle>
+            <Toggle
+              label="Waitlist for full days"
+              hint="Ava offers it when a day is full; cancellations go to the first person waiting."
+              checked={form.waitlist_enabled}
+              onChange={(v) => set("waitlist_enabled", v)}
+            >
+              <div className="flex items-center gap-2 text-sm">
+                Hold an offered time for
+                <Input
+                  type="number"
+                  min={5}
+                  max={240}
+                  value={form.waitlist_hold_minutes}
+                  onChange={(e) => set("waitlist_hold_minutes", Number(e.target.value))}
+                  className="h-8 w-20"
+                  aria-label="Hold minutes"
+                />
+                minutes
+              </div>
+            </Toggle>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Texts are sent once your SMS provider is connected (see Integrations). Until then they are listed but not sent.
+          </p>
+        </Section>
+
         {isAdmin ? (
           <div className="sticky bottom-20 z-10 flex justify-end lg:bottom-6">
             <Button
@@ -174,10 +235,13 @@ export default function SettingsPage() {
         ) : null}
 
         <HoursSection />
-        <ServicesSection />
-        <StaffSection />
+        <HolidaysSection />
+        <div id="services" className="scroll-mt-24">
+          <ServicesSection />
+        </div>
+        <TeamLink />
       </fieldset>
-      <IntegrationsSection />
+      <IntegrationsSection isAdmin={isAdmin} />
     </div>
   );
 }
@@ -204,6 +268,33 @@ function Section({
       </div>
       {children}
     </section>
+  );
+}
+
+function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+  children,
+}: {
+  label: string;
+  hint: string;
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2 rounded-xl border p-4">
+      <label className="flex items-start justify-between gap-3">
+        <span>
+          <span className="block text-sm font-semibold">{label}</span>
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        </span>
+        <Switch checked={checked} onCheckedChange={onChange} aria-label={label} />
+      </label>
+      {checked ? children : null}
+    </div>
   );
 }
 
@@ -382,86 +473,190 @@ function NumberField({ label, value, onChange }: { label: string; value: number;
   );
 }
 
-function StaffSection() {
-  const { data: staff, reload } = useApi<Staff[]>("/api/settings/staff");
-  const [edit, setEdit] = useState<Record<number, Staff>>({});
+function TeamLink() {
+  const { data: staff } = useApi<Staff[]>("/api/settings/staff");
+  return (
+    <Section icon={<Users />} title="Team" right={<Link href="/dashboard/team" className="text-sm font-medium text-primary">Manage team →</Link>}>
+      <p className="text-sm text-muted-foreground">
+        {staff ? `${staff.filter((m) => m.active).length} people taking bookings. ` : ""}
+        Add people, set each person&apos;s working hours, time off and calendar on the Team page.
+      </p>
+    </Section>
+  );
+}
 
-  async function save(s: Staff) {
-    const body = { name: s.name, title: s.title, calendar_id: s.calendar_id, color: s.color, active: s.active };
+function HolidaysSection() {
+  const { me } = useDashboard();
+  const { data, reload } = useApi<Holiday[]>("/api/settings/holidays");
+  const [date, setDate] = useState("");
+  const [label, setLabel] = useState("");
+  const [today] = useState(() => new Date().toLocaleDateString("en-CA")); // local YYYY-MM-DD
+  const upcoming = data?.filter((h) => h.date >= today) ?? [];
+
+  async function add() {
     try {
-      if (s.id === -1) await api("/api/settings/staff", { method: "POST", ...json(body) });
-      else await api(`/api/settings/staff/${s.id}`, { method: "PUT", ...json(body) });
-      toast.success(`${s.name} saved`);
-      setEdit({});
+      await api("/api/settings/holidays", { method: "POST", ...json({ date, label }) });
+      toast.success("Closure added. Ava won't book that day.");
+      setDate("");
+      setLabel("");
       void reload();
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
-  const rows = [...(staff ?? []), ...(edit[-1] ? [edit[-1]] : [])];
+  async function remove(h: Holiday) {
+    try {
+      await api(`/api/settings/holidays/${h.id}`, { method: "DELETE" });
+      void reload();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
   return (
-    <Section
-      icon={<Users />}
-      title="Team"
-      right={
-        <Button variant="outline" onClick={() => setEdit({ [-1]: { id: -1, name: "", title: "", calendar_id: "", color: "#0f9d8a", active: true } })}>
-          <Plus /> Add person
+    <Section icon={<CalendarX2 />} title="Holidays & closures">
+      <div className="flex flex-col gap-2" data-testid="holidays">
+        {data && upcoming.length === 0 ? <p className="text-sm text-muted-foreground">No closures coming up.</p> : null}
+        {upcoming.map((h) => (
+          <div key={h.id} className="flex items-center gap-3 rounded-xl border px-4 py-2.5 text-sm">
+            <span className="font-medium">
+              {new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${h.date}T00:00:00Z`))}
+            </span>
+            {h.label ? <span className="text-muted-foreground">· {h.label}</span> : null}
+            {me.role === "admin" ? (
+              <button type="button" onClick={() => void remove(h)} className="ml-auto text-muted-foreground hover:text-destructive" aria-label="Remove closure">
+                <Trash2 className="size-4" />
+              </button>
+            ) : null}
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-col gap-1">
+          <Label className="text-xs">Date</Label>
+          <Input type="date" value={date} min={today} onChange={(e) => setDate(e.target.value)} className="h-9" aria-label="Closure date" />
+        </div>
+        <div className="flex min-w-48 flex-1 flex-col gap-1">
+          <Label className="text-xs">Reason (optional)</Label>
+          <Input value={label} placeholder="Eid, public holiday, staff training…" onChange={(e) => setLabel(e.target.value)} className="h-9" />
+        </div>
+        <Button variant="outline" onClick={() => void add()} disabled={!date}>
+          <Plus /> Add closure
         </Button>
-      }
-    >
-      <div className="flex flex-col gap-3">
-        {rows.map((orig) => {
-          const s = edit[orig.id] ?? orig;
-          const upd = (patch: Partial<Staff>) => setEdit((e) => ({ ...e, [orig.id]: { ...s, ...patch } }));
-          return (
-            <div key={orig.id} className="grid items-end gap-3 rounded-xl border p-4 md:grid-cols-[1fr_1fr_1.4fr_auto_auto]">
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Name</Label>
-                <Input value={s.name} onChange={(e) => upd({ name: e.target.value })} className="h-9" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Title</Label>
-                <Input value={s.title} onChange={(e) => upd({ title: e.target.value })} className="h-9" />
-              </div>
-              <div className="flex flex-col gap-1">
-                <Label className="text-xs">Google Calendar ID (optional)</Label>
-                <Input value={s.calendar_id} placeholder="Uses the business calendar" onChange={(e) => upd({ calendar_id: e.target.value })} className="h-9" />
-              </div>
-              <input type="color" value={s.color} onChange={(e) => upd({ color: e.target.value })} className="h-9 w-12 rounded-md border" aria-label="Colour" />
-              <Button size="sm" disabled={!edit[orig.id] || !s.name} onClick={() => void save(s)} className="mb-0.5">
-                Save
-              </Button>
-            </div>
-          );
-        })}
       </div>
     </Section>
   );
 }
 
-function IntegrationsSection() {
+function IntegrationsSection({ isAdmin }: { isAdmin: boolean }) {
   const { data } = useApi<Ready>("/backend/ready");
+  const { data: status, reload } = useApi<Integrations>("/api/integrations");
+  const google = status?.google;
+
+  useEffect(() => {
+    const result = new URLSearchParams(window.location.search).get("calendar");
+    if (!result) return;
+    if (result === "connected") toast.success("Google Calendar connected. Pick the calendar to use below.");
+    else if (result === "cancelled") toast.info("Google Calendar wasn't connected.");
+    else toast.error("Couldn't connect Google Calendar. Please try again.");
+    window.history.replaceState(null, "", window.location.pathname);
+  }, []);
+
+  async function pick(id: string) {
+    try {
+      await api("/api/integrations/google", { method: "PUT", ...json({ calendar_id: id }) });
+      toast.success("Bookings will go to this calendar");
+      void reload();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  async function disconnect() {
+    try {
+      await api("/api/integrations/google", { method: "DELETE" });
+      toast.success("Google Calendar disconnected");
+      void reload();
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  }
+
+  const calendarDetail = !google
+    ? "…"
+    : google.mode === "connected"
+      ? `Connected as ${google.account_email || "your Google account"}`
+      : google.mode === "service_account"
+        ? "Connected with a service account"
+        : "Using the built-in calendar";
+
   const items = [
-    { key: "calendar", label: "Google Calendar", ok: data?.checks.calendar === "google", detail: data?.checks.calendar === "google" ? "Syncing bookings" : "Built-in calendar — add a service account in .env" },
-    { key: "livekit", label: "LiveKit (web & phone calls)", ok: data?.checks.livekit === "configured", detail: data?.checks.livekit ?? "…" },
-    { key: "llm", label: "Gemini (voice & summaries)", ok: data?.checks.llm === "configured", detail: data?.checks.llm ?? "…" },
-    { key: "smtp", label: "Email (SMTP)", ok: data?.checks.smtp === "configured", detail: data?.checks.smtp === "configured" ? "Confirmations & alerts on" : "Emails are logged, not sent" },
+    { key: "livekit", label: "Phone & web calls", ok: data?.checks.livekit === "configured", detail: data?.checks.livekit === "configured" ? "Ready to answer" : "Not set up yet" },
+    { key: "llm", label: "AI voice & summaries", ok: data?.checks.llm === "configured", detail: data?.checks.llm === "configured" ? "Ready" : "Not set up yet" },
+    { key: "smtp", label: "Email", ok: data?.checks.smtp === "configured", detail: data?.checks.smtp === "configured" ? "Confirmations & alerts on" : "Emails are logged, not sent" },
+    {
+      key: "sms",
+      label: "Text messages",
+      ok: Boolean(status?.sms.configured),
+      detail: status?.sms.configured ? `Sending from ${status.sms.from_number}` : "Add your SMS provider details to send texts",
+    },
   ];
+
   return (
     <section className="surface-card flex flex-col gap-4 p-6">
       <h3 className="flex items-center gap-2.5 font-semibold">
         <span className="flex size-8 items-center justify-center rounded-lg bg-mint text-primary">
           <Plug className="size-4" />
         </span>
-        Integrations & telephony
+        Integrations
         {data?.demo_mode ? <Pill className="ml-2">Demo mode</Pill> : null}
       </h3>
+
+      <div className="flex flex-col gap-3 rounded-xl border p-4" data-testid="google-calendar">
+        <div className="flex flex-wrap items-center gap-3">
+          <span className={cn("flex size-9 items-center justify-center rounded-lg", google?.mode !== "built_in" ? "bg-mint text-primary" : "bg-surface-container text-[#394761]")}>
+            <CalendarCheck2 className="size-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">Google Calendar</p>
+            <p className="truncate text-xs text-muted-foreground">{calendarDetail}</p>
+          </div>
+          {isAdmin && google?.available ? (
+            <div className="ml-auto flex gap-2">
+              {/* A real navigation (not fetch): Google's sign-in page needs the full browser window. */}
+              <a href="/api/integrations/google/start" className="inline-flex h-9 items-center rounded-lg bg-primary px-3.5 text-sm font-semibold text-white hover:bg-primary/90" data-testid="connect-google">
+                {google.connected ? "Reconnect" : "Connect Google Calendar"}
+              </a>
+              {google.connected ? (
+                <Button variant="ghost" size="sm" onClick={() => void disconnect()}>
+                  Disconnect
+                </Button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+        {google?.connected && isAdmin ? (
+          <div className="flex flex-col gap-1.5 sm:max-w-md">
+            <Label className="text-xs">Calendar for bookings</Label>
+            <CalendarPicker value={google.calendar_id} onChange={(id) => id && void pick(id)} emptyLabel="Choose a calendar…" />
+            <p className="text-xs text-muted-foreground">
+              New bookings appear here, and busy events here (or in a person&apos;s own calendar) block their time.
+            </p>
+          </div>
+        ) : null}
+        {google && !google.available ? (
+          <p className="text-xs text-muted-foreground">
+            The Connect button appears once Google sign-in is added to the server settings (see the README).
+          </p>
+        ) : null}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2">
         {items.map((i) => (
           <div key={i.key} className="flex items-center gap-3 rounded-xl border px-4 py-3">
             <span className={cn("flex size-9 items-center justify-center rounded-lg", i.ok ? "bg-mint text-primary" : "bg-surface-container text-[#394761]")}>
-              <CalendarCog className="size-4" />
+              {i.key === "sms" ? <MessageSquareText className="size-4" /> : <CalendarCog className="size-4" />}
             </span>
             <div className="min-w-0">
               <p className="text-sm font-semibold">{i.label}</p>

@@ -32,7 +32,8 @@ test("log in, change greeting, take a call, see it in the dashboard", async ({ p
   await page.getByTestId("header-talk").click();
   await page.getByTestId("start-call").click();
   await expect(
-    page.getByTestId("call-timer").or(page.getByRole("alert")),
+    // First visible wins: with live voice keys the call connects and may also warn about the mic.
+    page.getByTestId("call-timer").or(page.getByRole("alert")).first(),
   ).toBeVisible();
 
   // The agent leg: start the call, use tools, end it (exactly what agent/main.py does).

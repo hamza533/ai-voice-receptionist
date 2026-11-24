@@ -6,6 +6,7 @@ export const OUTCOMES: Record<Outcome, { label: string; className: string; dot: 
   cancelled: { label: "Cancelled", className: "bg-[#ffdad6] text-[#93000a]", dot: "bg-destructive" },
   faq_answered: { label: "FAQ answered", className: "bg-mint text-primary", dot: "bg-brand" },
   message_taken: { label: "Message taken", className: "bg-[#fef3c7] text-[#92400e]", dot: "bg-warning" },
+  waitlisted: { label: "Joined waitlist", className: "bg-secondary text-[#394761]", dot: "bg-[#505f7a]" },
   handed_to_human: { label: "Handed to human", className: "bg-[#fde2e1] text-[#93000a]", dot: "bg-[#e11d48]" },
   abandoned: { label: "Abandoned", className: "bg-muted text-muted-foreground", dot: "bg-[#94a3b8]" },
 };
@@ -78,12 +79,24 @@ export function initials(name: string) {
 export const TOOL_LABELS: Record<string, string> = {
   get_business_info: "Looked up business info",
   answer_faq: "Answered from the FAQ",
-  check_availability: "Checked availability in Google Calendar",
+  check_availability: "Checked availability",
   book_appointment: "Booked the appointment",
   reschedule_appointment: "Rescheduled the appointment",
   cancel_appointment: "Cancelled the appointment",
   take_message: "Took a message for the team",
   request_human: "Alerted staff for a handoff",
+  join_waitlist: "Added the caller to the waitlist",
 };
+
+export function fmtMoney(amount: number, currency: string) {
+  const whole = Number.isInteger(amount);
+  return `${currency} ${amount.toLocaleString("en-US", {
+    minimumFractionDigits: whole ? 0 : 2,
+    maximumFractionDigits: whole ? 0 : 2,
+  })}`;
+}
+
+/** "HH:MM" from an API time ("HH:MM:SS"). */
+export const hhmm = (t: string | null | undefined) => (t ?? "").slice(0, 5);
 
 export const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];

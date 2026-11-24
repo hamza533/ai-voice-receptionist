@@ -100,7 +100,11 @@ DIALOGUE: list[tuple[str, str, str]] = [
         "and transcribed. How can I help you today?",
     ),
     ("c2", "Ayesha", "Hi! Could I book a haircut with Sara tomorrow afternoon?"),
-    ("c3", "Ava", "Of course. Sara has two thirty or four o'clock tomorrow. Which would you prefer?"),
+    (
+        "c3",
+        "Ava",
+        "Of course. Sara has two thirty or four o'clock tomorrow. Which would you prefer?",
+    ),
     ("c4", "Ayesha", "Two thirty would be perfect."),
     (
         "c5",
@@ -112,7 +116,8 @@ DIALOGUE: list[tuple[str, str, str]] = [
     (
         "c7",
         "Ava",
-        "You're all set! I've sent you a confirmation text. Is there anything else I can help with?",
+        "You're all set! I've sent you a confirmation text. "
+        "Is there anything else I can help with?",
     ),
 ]
 
@@ -228,8 +233,10 @@ def trim(pcm: bytes, threshold: int = 700) -> bytes:
 
 def on_screen(text: str) -> str:
     """Times are spelled out for the voice, shown as numbers on screen."""
-    return text.replace("two thirty", "2:30").replace("Two thirty", "2:30").replace(
-        "four o'clock", "4:00"
+    return (
+        text.replace("two thirty", "2:30")
+        .replace("Two thirty", "2:30")
+        .replace("four o'clock", "4:00")
     )
 
 
@@ -271,7 +278,8 @@ def main() -> int:
     ]
     manifest: dict[str, dict[str, object]] = {}
     for lines, pcm in groups:
-        for (line_id, text, spk), seg in zip(lines, split(pcm, [t for _, t, _ in lines]), strict=True):
+        segments = split(pcm, [t for _, t, _ in lines])
+        for (line_id, text, spk), seg in zip(lines, segments, strict=True):
             seg = trim(seg)
             write(OUT / f"{line_id}.wav", seg)
             seconds = len(seg) / 2 / RATE

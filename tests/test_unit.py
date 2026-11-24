@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import itertools
 from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -235,3 +236,67 @@ def test_service_names_resolve_or_stay_ambiguous(said: str, expected: str | None
 
     options = ["Haircut", "Hair colour", "Beard trim", "Blow-dry and styling", "Kids haircut"]
     assert _match_name(said, options) == expected
+
+
+# ---------------------------------------------------------------- schedules, texts, secrets
+
+
+def test_working_hours_are_shifts_clipped_to_opening_hours() -> None:
+    from app.services.availability import working_hours
+
+    salon = {1: [(time(10), time(20))]}
+    assert working_hours(salon, None, 1) == [(time(10), time(20))]
+    own = {1: [(time(8), time(12)), (time(16), time(22))]}
+    assert working_hours(salon, own, 1) == [(time(10), time(12)), (time(16), time(20))]
+    assert working_hours(salon, own, 2) == []  # no shift that day: not working
+
+
+def test_compute_slots_offers_each_person_only_in_their_shifts() -> None:
+    # Sara works the salon hours; Omar only Monday 14:00-16:00.
+    q = _q(staff=[(2, "Omar"), (1, "Sara")], staff_hours={2: {0: [(time(14), time(16))]}})
+    slots = compute_slots(
+        q,
+        date_from=MON_9AM.date(),
+        date_to=MON_9AM.date(),
+        now_utc=MON_9AM,
+        limit=100,
+        per_day_limit=100,
+        min_gap_minutes=0,
+    )
+    assert {s.staff_id for s in slots} == {1, 2}
+    for s in slots:
+        local = s.start_utc.astimezone(ZoneInfo(TZ)).time()
+        if s.staff_id == 2:
+            assert time(14) <= local and local <= time(15, 15)
+        else:
+            assert not (time(14) <= local <= time(15, 15))  # Omar is listed first there
+
+
+def test_phone_numbers_become_international() -> None:
+    from app.services.sms import to_e164
+
+    assert to_e164("+92 300 111 2233") == "+923001112233"
+    assert to_e164("0300-1112233", "+92") == "+923001112233"
+    assert to_e164("0044 20 7946 0000") == "+442079460000"
+    assert to_e164("0300 1112233") == ""  # no country code known: don't guess
+
+
+def test_twilio_signature_detects_tampering() -> None:
+    from app.services.sms import signature_valid, twilio_signature
+
+    url, params = "https://salon.example.com/api/sms/inbound", {"From": "+1555", "Body": "C"}
+    sig = twilio_signature(url, params, "token")
+    assert signature_valid(url, params, sig, "token")
+    assert not signature_valid(url, {**params, "Body": "YES"}, sig, "token")
+    assert not signature_valid(url, params, sig, "other-token")
+    assert not signature_valid(url, params, "", "token")
+
+
+def test_secrets_round_trip_and_fail_closed() -> None:
+    from app.config import Settings
+    from app.services.crypto import decrypt, encrypt
+
+    a, b = Settings(session_secret="one"), Settings(session_secret="two")
+    token = encrypt(a, "refresh-token")
+    assert token != "refresh-token" and decrypt(a, token) == "refresh-token"
+    assert decrypt(b, token) is None

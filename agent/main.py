@@ -294,6 +294,32 @@ class Receptionist(Agent):
             self._spawn(self._transfer_after_goodbye())
         return _result(raw)
 
+    @function_tool()
+    async def join_waitlist(
+        self,
+        context: RunContext,
+        service: str,
+        date: str,
+        name: str,
+        phone: str | None = None,
+        staff: str | None = None,
+        time_of_day: str = "any",
+    ) -> str:
+        """Put the caller on the waitlist for a day that is full. They get the first matching
+        cancellation (by text when available).
+
+        Args:
+            service: the service they want
+            date: the day they want, e.g. "saturday" or "2026-11-29"
+            name: caller's name
+            phone: mobile number for the text (omit on phone calls to use caller id)
+            staff: a preferred staff member, if any
+            time_of_day: any, morning, afternoon or evening
+        """
+        args = {"service": service, "date": date, "name": name, "time_of_day": time_of_day}
+        args.update({k: v for k, v in {"phone": phone, "staff": staff}.items() if v})
+        return await self._tool("join_waitlist", args)
+
     async def _transfer_after_goodbye(self) -> None:
         await asyncio.sleep(4)  # let the agent say "connecting you now"
         sip = next(

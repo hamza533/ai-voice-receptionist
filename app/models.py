@@ -69,6 +69,13 @@ class BusinessConfig(Base):
     staff_notify_email: Mapped[str] = mapped_column(String(255), default="")
     email_signature: Mapped[str] = mapped_column(Text, default="")
     extra_instructions: Mapped[str] = mapped_column(Text, default="")
+    # Customer notifications and waitlist
+    sms_confirmations: Mapped[bool] = mapped_column(Boolean, default=True)
+    sms_reminders: Mapped[bool] = mapped_column(Boolean, default=True)
+    reminder_hours: Mapped[int] = mapped_column(Integer, default=24)
+    waitlist_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    waitlist_hold_minutes: Mapped[int] = mapped_column(Integer, default=30)
+    setup_completed: Mapped[bool] = mapped_column(Boolean, default=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
@@ -111,6 +118,44 @@ class Staff(Base):
     services: Mapped[list[Service]] = relationship(
         secondary=staff_services, back_populates="staff", lazy="selectin"
     )
+    shifts: Mapped[list[StaffShift]] = relationship(
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="[StaffShift.weekday, StaffShift.start_time]",
+    )
+
+
+class StaffShift(Base):
+    """A person's weekly working hours. No shifts at all = works the salon's opening hours."""
+
+    __tablename__ = "staff_shifts"
+    __table_args__ = (
+        UniqueConstraint("staff_id", "weekday", "start_time", name="uq_staff_shift_start"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    staff_id: Mapped[int] = mapped_column(ForeignKey("staff.id", ondelete="CASCADE"), index=True)
+    weekday: Mapped[int] = mapped_column(Integer)  # 0 = Monday ... 6 = Sunday
+    start_time: Mapped[time] = mapped_column(Time)
+    end_time: Mapped[time] = mapped_column(Time)
+
+
+class TimeOff(TimestampMixin, Base):
+    """Time a person can't be booked: one period (holiday, appointment) or a weekly break."""
+
+    __tablename__ = "time_off"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    staff_id: Mapped[int] = mapped_column(ForeignKey("staff.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))  # once | weekly
+    start_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    end_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    weekday: Mapped[int | None] = mapped_column(Integer)
+    start_time: Mapped[time | None] = mapped_column(Time)
+    end_time: Mapped[time | None] = mapped_column(Time)
+    label: Mapped[str] = mapped_column(String(120), default="")
+
+    staff: Mapped[Staff] = relationship(lazy="joined")
 
 
 class OpeningHours(Base):
@@ -259,6 +304,37 @@ class Message(TimestampMixin, Base):
     idempotency_key: Mapped[str | None] = mapped_column(String(128), unique=True)
 
 
+class WaitlistEntry(TimestampMixin, Base):
+    """A caller who wants a day that is full. When a matching slot frees up, the first
+    person waiting is offered it (by SMS when configured) and holds it for a short time."""
+
+    __tablename__ = "waitlist"
+    __table_args__ = (Index("ix_waitlist_status_day", "status", "day"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    phone: Mapped[str] = mapped_column(String(40))
+    service_id: Mapped[int] = mapped_column(ForeignKey("services.id"))
+    staff_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id", ondelete="SET NULL"))
+    day: Mapped[date] = mapped_column(Date)  # business-local date wanted
+    time_of_day: Mapped[str] = mapped_column(String(16), default="any")
+    notes: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="waiting")
+    # waiting | offered | booked | expired | removed
+    call_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("calls.id", ondelete="SET NULL"))
+    offer_start_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    offer_staff_id: Mapped[int | None] = mapped_column(ForeignKey("staff.id", ondelete="SET NULL"))
+    offer_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    offered_slots: Mapped[list[str]] = mapped_column(JSONType, default=list)
+    appointment_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("appointments.id", ondelete="SET NULL")
+    )
+
+    service: Mapped[Service] = relationship(lazy="joined")
+    staff: Mapped[Staff | None] = relationship(foreign_keys=[staff_id], lazy="joined")
+    offer_staff: Mapped[Staff | None] = relationship(foreign_keys=[offer_staff_id], lazy="joined")
+
+
 # ---------------------------------------------------------------- auth
 
 
@@ -328,6 +404,39 @@ class EmailOutbox(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(16), default="pending")  # pending|sent|skipped
     error: Mapped[str | None] = mapped_column(Text)
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class SmsMessage(TimestampMixin, Base):
+    """Outgoing SMS (idempotent, like the email outbox) and incoming replies."""
+
+    __tablename__ = "sms_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    direction: Mapped[str] = mapped_column(String(8), default="out")  # out | in
+    idempotency_key: Mapped[str | None] = mapped_column(String(255), unique=True)
+    phone: Mapped[str] = mapped_column(String(40))
+    body: Mapped[str] = mapped_column(Text)
+    kind: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16), default="pending")
+    # out: pending | sent | skipped ; in: received
+    provider_id: Mapped[str | None] = mapped_column(String(64))
+    error: Mapped[str | None] = mapped_column(Text)
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Integration(TimestampMixin, Base):
+    """An OAuth connection (Google Calendar). The refresh token is stored encrypted."""
+
+    __tablename__ = "integrations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    provider: Mapped[str] = mapped_column(String(32), unique=True)
+    account_email: Mapped[str] = mapped_column(String(255), default="")
+    refresh_token_enc: Mapped[str] = mapped_column(Text)
+    calendar_id: Mapped[str] = mapped_column(String(255), default="")
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
 
 class LLMUsage(TimestampMixin, Base):

@@ -5,8 +5,9 @@ from __future__ import annotations
 import logging
 import uuid
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any, Literal
+from zoneinfo import ZoneInfo
 
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select, update
@@ -15,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.llm import LLM, LLMUnavailable, record_usage
 from app.models import (
+    ACTIVE_APPOINTMENT_STATUSES,
     Appointment,
     BusinessConfig,
     Call,
@@ -22,13 +24,19 @@ from app.models import (
     Job,
     Message,
     RateLimit,
+    SmsMessage,
+    StaffShift,
+    TimeOff,
     ToolCall,
     TranscriptTurn,
     UserSession,
+    WaitlistEntry,
 )
-from app.services.calendar import calendar_for_staff, get_calendar
+from app.services import waitlist
+from app.services.calendar import calendar_for_staff, default_calendar_id, get_calendar
 from app.services.email import send_email
-from app.services.timeutil import speak_time, utcnow
+from app.services.sms import send_sms
+from app.services.timeutil import local_today, speak_time, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +46,7 @@ OUTCOMES = [
     "cancelled",
     "faq_answered",
     "message_taken",
+    "waitlisted",
     "handed_to_human",
     "abandoned",
 ]
@@ -48,6 +57,7 @@ _TOOL_OUTCOME = [
     ("book_appointment", "booked"),
     ("reschedule_appointment", "rescheduled"),
     ("cancel_appointment", "cancelled"),
+    ("join_waitlist", "waitlisted"),
     ("take_message", "message_taken"),
     ("answer_faq", "faq_answered"),
     ("get_business_info", "faq_answered"),
@@ -87,6 +97,7 @@ def _fallback_summary(call: Call, outcome: str, tool_calls: list[ToolCall]) -> s
         "rescheduled": "Caller moved an existing appointment.",
         "cancelled": "Caller cancelled an appointment.",
         "message_taken": "Receptionist took a message for staff.",
+        "waitlisted": "Caller joined the waitlist for a full day.",
         "handed_to_human": "Caller asked for a person; staff were notified.",
         "faq_answered": "Caller asked questions and got answers.",
         "abandoned": "Caller hung up before anything was done.",
@@ -178,6 +189,100 @@ def handle_send_booking_email(db: Session, settings: Settings, payload: dict[str
     )
 
 
+def _short_when(start_utc: datetime, tz: str) -> str:
+    local = start_utc.astimezone(ZoneInfo(tz))
+    return f"{local:%a %d %b} at {local:%I:%M %p}".replace(" 0", " ")
+
+
+def handle_send_booking_sms(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
+    appt = db.get(Appointment, uuid.UUID(payload["appointment_id"]))
+    biz = db.get(BusinessConfig, 1)
+    if appt is None or not appt.phone or biz is None or not biz.sms_confirmations:
+        return
+    change = payload["change"]
+    when = _short_when(appt.start_utc, biz.timezone)
+    lines = {
+        "booked": f"You're booked: {appt.service.name} with {appt.staff.name}, {when}.",
+        "rescheduled": f"Your {appt.service.name} with {appt.staff.name} is now {when}.",
+        "cancelled": f"Your {appt.service.name} on {when} is cancelled.",
+    }
+    tail = " Reply C to cancel." if change != "cancelled" else ""
+    send_sms(
+        db,
+        settings,
+        key=f"sms:{appt.id}:{change}:{appt.start_utc.isoformat()}",
+        to=appt.phone,
+        body=f"{biz.name}: {lines[change]}{tail}",
+        kind=f"customer_{change}",
+    )
+
+
+def handle_send_reminder(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
+    appt = db.get(Appointment, uuid.UUID(payload["appointment_id"]))
+    biz = db.get(BusinessConfig, 1)
+    if appt is None or biz is None or not biz.sms_reminders or not appt.phone:
+        return
+    # A booking that moved or was cancelled since this reminder was queued: skip it (the
+    # move queued its own reminder for the new time).
+    if appt.status not in ACTIVE_APPOINTMENT_STATUSES:
+        return
+    if appt.start_utc.isoformat() != payload["start_utc"] or appt.start_utc <= utcnow():
+        return
+    when = _short_when(appt.start_utc, biz.timezone)
+    send_sms(
+        db,
+        settings,
+        key=f"sms:reminder:{appt.id}:{payload['start_utc']}",
+        to=appt.phone,
+        body=(
+            f"Reminder from {biz.name}: {appt.service.name} with {appt.staff.name}, {when}."
+            " Reply C to cancel."
+        ),
+        kind="customer_reminder",
+    )
+
+
+def handle_waitlist_match(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
+    waitlist.match_freed_slot(
+        db,
+        get_calendar(settings),
+        settings,
+        staff_id=int(payload["staff_id"]),
+        start_utc=datetime.fromisoformat(payload["start_utc"]),
+        now=utcnow(),
+    )
+
+
+def handle_waitlist_expire(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
+    freed = waitlist.expire_offer(db, int(payload["entry_id"]), payload["slot"], utcnow())
+    if freed is not None:  # offer the same time to the next person
+        staff_id, start = freed
+        waitlist.match_freed_slot(
+            db, get_calendar(settings), settings, staff_id=staff_id, start_utc=start, now=utcnow()
+        )
+
+
+def handle_send_waitlist_offer(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
+    entry = db.get(WaitlistEntry, int(payload["entry_id"]))
+    biz = db.get(BusinessConfig, 1)
+    if entry is None or biz is None or entry.status != "offered" or not entry.offer_start_utc:
+        return
+    if entry.offer_staff is None or not entry.offer_expires_at:
+        return
+    when = _short_when(entry.offer_start_utc, biz.timezone)
+    send_sms(
+        db,
+        settings,
+        key=f"sms:waitlist:{entry.id}:{payload['slot']}",
+        to=entry.phone,
+        body=(
+            f"{biz.name}: good news, {entry.service.name} with {entry.offer_staff.name} is free "
+            f"{when}. Reply YES within {biz.waitlist_hold_minutes} minutes to book it."
+        ),
+        kind="waitlist_offer",
+    )
+
+
 def handle_send_staff_message(db: Session, settings: Settings, payload: dict[str, Any]) -> None:
     msg = db.get(Message, int(payload["message_id"]))
     if msg is None:
@@ -218,6 +323,9 @@ def handle_purge(db: Session, settings: Settings, payload: dict[str, Any]) -> No
         .values(name="[purged]", callback_number="", text="[purged]")
     )
     db.execute(delete(EmailOutbox).where(EmailOutbox.created_at < cutoff))
+    db.execute(delete(SmsMessage).where(SmsMessage.created_at < cutoff))
+    biz = db.get(BusinessConfig, 1)
+    waitlist.expire_past_days(db, local_today(biz.timezone if biz else "UTC", now))
     year_ago = now - timedelta(days=365)
     db.execute(
         update(Appointment)
@@ -242,12 +350,17 @@ def handle_demo_reset(db: Session, settings: Settings, payload: dict[str, Any]) 
         if appt.calendar_event_id:
             try:
                 calendar.delete_event(
-                    calendar_for_staff(appt.staff, settings.google_calendar_id),
+                    calendar_for_staff(appt.staff, default_calendar_id(settings)),
                     appt.calendar_event_id,
                 )
             except Exception:
                 log.exception("demo reset: calendar delete failed")
+    # Visitors may have changed schedules or joined the waitlist: restore a clean demo.
+    db.execute(delete(WaitlistEntry))
     db.execute(delete(Appointment))
+    db.execute(delete(TimeOff))
+    db.execute(delete(StaffShift))
+    db.execute(delete(SmsMessage))
     db.commit()
     seed_demo_activity(db, settings, reset=True)
     log.info("demo calendar reset done")
@@ -257,6 +370,11 @@ HANDLERS: dict[str, Callable[[Session, Settings, dict[str, Any]], None]] = {
     "post_call": handle_post_call,
     "send_booking_email": handle_send_booking_email,
     "send_staff_message": handle_send_staff_message,
+    "send_booking_sms": handle_send_booking_sms,
+    "send_reminder": handle_send_reminder,
+    "send_waitlist_offer": handle_send_waitlist_offer,
+    "waitlist_match": handle_waitlist_match,
+    "waitlist_expire": handle_waitlist_expire,
     "purge": handle_purge,
     "demo_reset": handle_demo_reset,
 }

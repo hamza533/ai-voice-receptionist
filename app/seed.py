@@ -36,7 +36,12 @@ from app.models import (
     ToolCall,
     TranscriptTurn,
 )
-from app.services.calendar import calendar_for_staff, event_id_for, get_calendar
+from app.services.calendar import (
+    calendar_for_staff,
+    default_calendar_id,
+    event_id_for,
+    get_calendar,
+)
 from app.services.timeutil import speak_time, utcnow
 
 SAMPLE = Path(__file__).resolve().parent.parent / "sample_data" / "luma_hair_studio.yaml"
@@ -52,6 +57,7 @@ def seed_business(db: Session, path: Path = SAMPLE) -> None:
     biz = db.get(BusinessConfig, 1) or BusinessConfig(id=1)
     for k, v in data["business"].items():
         setattr(biz, k, v)
+    biz.setup_completed = True  # the sample business is ready to use
     db.add(biz)
 
     staff_by_name: dict[str, Staff] = {}
@@ -366,7 +372,7 @@ def seed_demo_activity(
                 appt.service, appt.staff = service, member
                 try:
                     appt.calendar_event_id = calendar.upsert_event(
-                        calendar_for_staff(member, settings.google_calendar_id),
+                        calendar_for_staff(member, default_calendar_id(settings)),
                         event_id_for(key),
                         summary=f"{service.name} – {name}",
                         description="Synthetic demo booking",

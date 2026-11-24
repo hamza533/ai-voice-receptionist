@@ -1,0 +1,241 @@
+"""Waitlist: callers who want a day that is full get the next matching cancellation.
+
+Flow: a booking is cancelled or moved -> a `waitlist_match` job looks for the first person
+waiting for that day (right service, staff and time of day) whose booking would fit the
+freed time -> they are offered it by text and it is held for `waitlist_hold_minutes`.
+They reply YES (or staff press "Book" in the dashboard) to take it; the booking goes
+through the normal booking step, so all double-booking guarantees still apply. If the hold
+runs out, the next person is offered the same time.
+"""
+
+from __future__ import annotations
+
+import logging
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.config import Settings
+from app.jobs.queue import enqueue
+from app.models import Appointment, BusinessConfig, Service, Staff, WaitlistEntry
+from app.services import booking as booking_svc
+from app.services.availability import slot_is_free
+from app.services.calendar import CalendarClient
+from app.services.privacy import normalize_phone, phones_match
+
+log = logging.getLogger(__name__)
+
+TIME_WINDOWS: dict[str, tuple[time | None, time | None]] = {
+    "morning": (None, time(12, 0)),
+    "afternoon": (time(12, 0), time(17, 0)),
+    "evening": (time(17, 0), None),
+    "any": (None, None),
+}
+
+
+def slot_key(staff_id: int, start_utc: datetime) -> str:
+    return f"{staff_id}:{start_utc.astimezone(UTC).strftime('%Y%m%dT%H%MZ')}"
+
+
+def fits_window(time_of_day: str, local_start: time) -> bool:
+    lo, hi = TIME_WINDOWS.get(time_of_day, (None, None))
+    return (lo is None or local_start >= lo) and (hi is None or local_start < hi)
+
+
+def add_entry(
+    db: Session,
+    *,
+    name: str,
+    phone: str,
+    service: Service,
+    day: date,
+    staff: Staff | None = None,
+    time_of_day: str = "any",
+    notes: str = "",
+    call_id: object | None = None,
+) -> tuple[WaitlistEntry, bool]:
+    """Add someone to the waitlist. Returns (entry, created); the same person waiting for
+    the same service and day is not added twice."""
+    number = normalize_phone(phone)
+    existing = db.scalars(
+        select(WaitlistEntry).where(
+            WaitlistEntry.day == day,
+            WaitlistEntry.service_id == service.id,
+            WaitlistEntry.status.in_(("waiting", "offered")),
+        )
+    )
+    for e in existing:
+        if phones_match(e.phone, number):
+            return e, False
+    entry = WaitlistEntry(
+        name=name.strip()[:120],
+        phone=number,
+        service_id=service.id,
+        staff_id=staff.id if staff else None,
+        day=day,
+        time_of_day=time_of_day if time_of_day in TIME_WINDOWS else "any",
+        notes=notes[:500],
+        status="waiting",
+        call_id=call_id,
+        offered_slots=[],
+    )
+    db.add(entry)
+    db.commit()
+    return entry, True
+
+
+def match_freed_slot(
+    db: Session,
+    calendar: CalendarClient,
+    settings: Settings,
+    *,
+    staff_id: int,
+    start_utc: datetime,
+    now: datetime,
+) -> WaitlistEntry | None:
+    """Offer a freed time to the first suitable person waiting. Commits the offer and queues
+    the offer text and the hold expiry in the same transaction."""
+    biz = db.get(BusinessConfig, 1)
+    staff = db.get(Staff, staff_id)
+    if biz is None or staff is None or not biz.waitlist_enabled or not staff.active:
+        return None
+    local = start_utc.astimezone(ZoneInfo(biz.timezone))
+    key = slot_key(staff_id, start_utc)
+    waiting = db.scalars(
+        select(WaitlistEntry)
+        .where(WaitlistEntry.day == local.date(), WaitlistEntry.status == "waiting")
+        .order_by(WaitlistEntry.created_at, WaitlistEntry.id)
+    )
+    for entry in waiting:
+        if entry.staff_id not in (None, staff_id) or key in (entry.offered_slots or []):
+            continue
+        if not fits_window(entry.time_of_day, local.time()):
+            continue
+        free, _ = slot_is_free(
+            db,
+            calendar,
+            settings,
+            service=entry.service,
+            staff=staff,
+            start_utc=start_utc,
+            now_utc=now,
+        )
+        if not free:
+            continue
+        expires = now + timedelta(minutes=biz.waitlist_hold_minutes)
+        entry.status = "offered"
+        entry.offer_staff_id = staff_id
+        entry.offer_start_utc = start_utc
+        entry.offer_expires_at = expires
+        entry.offered_slots = [*(entry.offered_slots or []), key]
+        enqueue(
+            db,
+            "send_waitlist_offer",
+            {"entry_id": entry.id, "slot": key},
+            idempotency_key=f"waitlist-offer:{entry.id}:{key}",
+        )
+        enqueue(
+            db,
+            "waitlist_expire",
+            {"entry_id": entry.id, "slot": key},
+            idempotency_key=f"waitlist-expire:{entry.id}:{key}",
+            run_at=expires,
+        )
+        db.commit()
+        log.info("waitlist offer made", extra={"entry_id": entry.id})
+        return entry
+    db.rollback()
+    return None
+
+
+def accept_offer(
+    db: Session,
+    calendar: CalendarClient,
+    settings: Settings,
+    entry: WaitlistEntry,
+    now: datetime,
+    *,
+    confirm_sms: bool = True,
+) -> Appointment:
+    """Book the time held for this person. Raises BookingError if it is no longer free (the
+    person goes back to waiting)."""
+    if entry.status != "offered" or not entry.offer_start_utc or not entry.offer_staff_id:
+        raise booking_svc.BookingError("no_offer", "There is no time held for this person.")
+    if entry.offer_expires_at and entry.offer_expires_at < now:
+        raise booking_svc.BookingError("offer_expired", "The held time has expired.")
+    entry_id, phone = entry.id, entry.phone
+    try:
+        appt, _ = booking_svc.book(
+            db,
+            calendar,
+            settings,
+            booking_svc.BookingRequest(
+                service_id=entry.service_id,
+                staff_id=entry.offer_staff_id,
+                start_utc=entry.offer_start_utc,
+                customer_name=entry.name,
+                phone=phone,
+                notes="Booked from the waitlist",
+            ),
+            now_utc=now,
+            confirm_sms=confirm_sms,
+        )
+    except booking_svc.BookingError:
+        back = db.get(WaitlistEntry, entry_id)
+        if back is not None:
+            back.status = "waiting"
+            back.offer_expires_at = None
+            db.commit()
+        raise
+    done = db.get(WaitlistEntry, entry_id)
+    if done is not None and done.status != "booked":  # book() closes entries by phone + day
+        done.status = "booked"
+        done.appointment_id = appt.id
+        db.commit()
+    return appt
+
+
+def expire_offer(
+    db: Session, entry_id: int, key: str, now: datetime
+) -> tuple[int, datetime] | None:
+    """The hold ran out: the person goes back to waiting (for other times) and the time is
+    returned as (staff_id, start_utc) so it can be offered to the next person."""
+    entry = db.get(WaitlistEntry, entry_id)
+    if entry is None or entry.status != "offered" or not entry.offer_start_utc:
+        return None
+    if entry.offer_staff_id is None or slot_key(entry.offer_staff_id, entry.offer_start_utc) != key:
+        return None
+    if entry.offer_expires_at and entry.offer_expires_at > now:
+        return None
+    freed = (entry.offer_staff_id, entry.offer_start_utc)
+    entry.status = "waiting"
+    entry.offer_expires_at = None
+    entry.offer_start_utc = None
+    entry.offer_staff_id = None
+    db.commit()
+    return freed
+
+
+def open_offer_for_phone(db: Session, phone: str, now: datetime) -> WaitlistEntry | None:
+    rows = db.scalars(
+        select(WaitlistEntry)
+        .where(WaitlistEntry.status == "offered", WaitlistEntry.offer_expires_at > now)
+        .order_by(WaitlistEntry.offer_expires_at)
+    )
+    return next((e for e in rows if phones_match(e.phone, phone)), None)
+
+
+def expire_past_days(db: Session, today: date) -> int:
+    rows = list(
+        db.scalars(
+            select(WaitlistEntry).where(
+                WaitlistEntry.day < today, WaitlistEntry.status.in_(("waiting", "offered"))
+            )
+        )
+    )
+    for e in rows:
+        e.status = "expired"
+    db.commit()
+    return len(rows)

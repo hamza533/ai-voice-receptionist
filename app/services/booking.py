@@ -19,17 +19,29 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
 from app.jobs.queue import enqueue
-from app.models import ACTIVE_APPOINTMENT_STATUSES, Appointment, BusinessConfig, Service, Staff
+from app.models import (
+    ACTIVE_APPOINTMENT_STATUSES,
+    Appointment,
+    BusinessConfig,
+    Service,
+    Staff,
+    WaitlistEntry,
+)
 from app.services.availability import slot_is_free
-from app.services.calendar import CalendarClient, calendar_for_staff, event_id_for
+from app.services.calendar import (
+    CalendarClient,
+    calendar_for_staff,
+    default_calendar_id,
+    event_id_for,
+)
 from app.services.privacy import normalize_email, normalize_phone, phones_match
-from app.services.timeutil import speak_time
+from app.services.timeutil import speak_time, utcnow
 
 log = logging.getLogger(__name__)
 
@@ -82,15 +94,65 @@ def _event_text(appt: Appointment, tz: str) -> tuple[str, str]:
     return summary, desc
 
 
-def _enqueue_customer_email(db: Session, appt: Appointment, change: str) -> None:
-    if not appt.email:
+def _notify_customer(
+    db: Session, appt: Appointment, change: str, *, confirm_sms: bool = True
+) -> None:
+    """Queue the customer's confirmation email and text, and the reminder text, in the same
+    transaction as the booking change (transactional outbox). The job handlers check the
+    business's notification settings and skip what is switched off."""
+    payload = {"appointment_id": str(appt.id), "change": change}
+    stamp = appt.start_utc.isoformat()
+    if appt.email:
+        enqueue(
+            db, "send_booking_email", payload, idempotency_key=f"email:{appt.id}:{change}:{stamp}"
+        )
+    if not appt.phone:
+        return
+    if confirm_sms:  # False when the customer made the change by text: the reply confirms it
+        enqueue(db, "send_booking_sms", payload, idempotency_key=f"sms:{appt.id}:{change}:{stamp}")
+    if change in {"booked", "rescheduled"}:
+        biz = db.get(BusinessConfig, 1)
+        hours = biz.reminder_hours if biz else 24
+        run_at = appt.start_utc - timedelta(hours=hours)
+        if run_at > utcnow():
+            enqueue(
+                db,
+                "send_reminder",
+                {"appointment_id": str(appt.id), "start_utc": stamp},
+                idempotency_key=f"reminder:{appt.id}:{stamp}",
+                run_at=run_at,
+            )
+
+
+def _slot_freed(db: Session, staff_id: int, start_utc: datetime) -> None:
+    """A cancelled or moved booking frees its time: offer it to the waitlist."""
+    if start_utc <= utcnow():
         return
     enqueue(
         db,
-        "send_booking_email",
-        {"appointment_id": str(appt.id), "change": change},
-        idempotency_key=f"email:{appt.id}:{change}:{appt.start_utc.isoformat()}",
+        "waitlist_match",
+        {"staff_id": staff_id, "start_utc": start_utc.isoformat()},
+        idempotency_key=f"waitlist:{staff_id}:{start_utc.isoformat()}:{uuid.uuid4().hex[:8]}",
     )
+
+
+def _close_waitlist(db: Session, appt: Appointment, tz: str) -> None:
+    """Someone on the waitlist who books that day by any route is no longer waiting."""
+    if not appt.phone:
+        return
+    day = appt.start_utc.astimezone(ZoneInfo(tz)).date()
+    rows = db.scalars(
+        select(WaitlistEntry).where(
+            WaitlistEntry.day == day, WaitlistEntry.status.in_(("waiting", "offered"))
+        )
+    )
+    ids = [w.id for w in rows if phones_match(w.phone, appt.phone)]
+    if ids:
+        db.execute(
+            update(WaitlistEntry)
+            .where(WaitlistEntry.id.in_(ids))
+            .values(status="booked", appointment_id=appt.id, offer_expires_at=None)
+        )
 
 
 def book(
@@ -100,6 +162,7 @@ def book(
     req: BookingRequest,
     *,
     now_utc: datetime,
+    confirm_sms: bool = True,
 ) -> tuple[Appointment, bool]:
     """Create a booking. Returns (appointment, created). Commits on success."""
     key = booking_key(req.call_id, req.staff_id, req.start_utc)
@@ -162,7 +225,7 @@ def book(
             return again, False
         raise BookingError("slot_unavailable", "That time was just taken.") from exc
 
-    cal_id = calendar_for_staff(staff, settings.google_calendar_id)
+    cal_id = calendar_for_staff(staff, default_calendar_id(settings))
     summary, desc = _event_text(appt, tz)
     event_id = event_id_for(key)
     try:
@@ -181,7 +244,8 @@ def book(
         log.exception("calendar event creation failed", extra={"staff_id": staff.id})
         raise BookingError("calendar_error", "The calendar could not be updated.") from exc
 
-    _enqueue_customer_email(db, appt, "booked")
+    _notify_customer(db, appt, "booked", confirm_sms=confirm_sms)
+    _close_waitlist(db, appt, tz)
     try:
         db.commit()
     except Exception:
@@ -288,7 +352,7 @@ def reschedule(
     tz = _tz(db)
     event_id = appt.calendar_event_id or event_id_for(appt.idempotency_key)
     old = _EventState.of(appt, settings, tz)
-    new_cal = calendar_for_staff(staff, settings.google_calendar_id)
+    new_cal = calendar_for_staff(staff, default_calendar_id(settings))
     appt.staff_id = staff.id
     appt.staff = staff
     appt.start_utc = new_start_utc
@@ -320,7 +384,8 @@ def reschedule(
         raise BookingError("calendar_error", "The calendar could not be updated.") from exc
 
     appt.calendar_event_id = new_event_id
-    _enqueue_customer_email(db, appt, "rescheduled")
+    _notify_customer(db, appt, "rescheduled")
+    _slot_freed(db, old.staff_id, old.start)
     try:
         db.commit()
     except Exception:
@@ -337,7 +402,12 @@ def reschedule(
 
 
 def cancel(
-    db: Session, calendar: CalendarClient, settings: Settings, appt: Appointment
+    db: Session,
+    calendar: CalendarClient,
+    settings: Settings,
+    appt: Appointment,
+    *,
+    confirm_sms: bool = True,
 ) -> Appointment:
     if appt.status == "cancelled":
         return appt
@@ -350,7 +420,8 @@ def cancel(
             log.exception("calendar delete failed on cancel")
             raise BookingError("calendar_error", "The calendar could not be updated.") from exc
     appt.status = "cancelled"
-    _enqueue_customer_email(db, appt, "cancelled")
+    _notify_customer(db, appt, "cancelled", confirm_sms=confirm_sms)
+    _slot_freed(db, appt.staff_id, appt.start_utc)
     try:
         db.commit()
     except Exception:
@@ -378,7 +449,7 @@ class _EventState:
     def of(cls, appt: Appointment, settings: Settings, tz: str) -> _EventState:
         summary, desc = _event_text(appt, tz)
         return cls(
-            calendar_id=calendar_for_staff(appt.staff, settings.google_calendar_id),
+            calendar_id=calendar_for_staff(appt.staff, default_calendar_id(settings)),
             summary=summary,
             description=desc,
             start=appt.start_utc,

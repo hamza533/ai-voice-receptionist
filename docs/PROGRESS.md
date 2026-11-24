@@ -1,8 +1,9 @@
 # Progress
 
 ## Status
-**Milestone:** MVP feature-complete (v0.1.0). Everything that runs without the owner's
-third-party keys is built, tested and green.
+**Milestone:** v0.2.0: Phase 1 & 2 built (schedules, time off, texts, reminders, waitlist,
+value-booked card, Google Calendar connect, setup wizard). Everything that runs without the
+owner's third-party keys is built, tested and green.
 
 **Done**
 - API, data model + migration, slot engine, bookings (idempotent, double-booking-safe),
@@ -13,10 +14,14 @@ third-party keys is built, tested and green.
 - LiveKit Agents worker with Gemini Live (web + phone, barge-in, busy line, call time limit,
   SIP transfer option, transcript/latency/token reporting, live tool events to the web UI).
 - Next.js dashboard from the Stitch design (docs/design/): landing, live call, overview, calls,
-  call detail, appointments, messages, knowledge, settings, login.
-- Tests: 45 pytest (unit + integration on real Postgres, incl. concurrency), Playwright e2e
-  (login → settings → call → call record), 30-scenario eval (tools mode: 100% / 0 invented
-  slots / 0 double bookings).
+  call detail, appointments, waitlist, messages, team & schedules, knowledge, settings,
+  setup wizard, login.
+- Phase 1 & 2: per-person shifts and time off in the slot engine, holidays UI, Twilio texts
+  (confirmations, reminders, reply C / YES) with signed webhook, waitlist with held offers,
+  "value booked by Ava" + after-hours figures, Google OAuth "Connect" + calendar picker.
+- Tests: 78 pytest (unit + integration on real Postgres, incl. concurrency), Playwright e2e
+  (login → settings → call → call record; team hours and time off; waitlist), 30-scenario
+  eval (tools mode: 100% / 0 invented slots / 0 double bookings).
 - CI (lint, mypy, tsc, tests, eval, e2e, image build + Trivy, Bicep), CodeQL, Dependabot,
   disabled-by-default Azure deploy, Render blueprint, Bicep production profile.
 
@@ -31,6 +36,9 @@ third-party keys is built, tested and green.
    copy the numbers into README "Results" and the case study.
 3. Google Calendar: service account + share the demo calendar → `GOOGLE_*`.
 4. Gmail app password → `SMTP_*`, `STAFF_NOTIFY_EMAIL` (demo inbox).
+4b. Twilio account + SMS number → `TWILIO_*`, `SMS_DEFAULT_COUNTRY_CODE`; set the number's
+   incoming-message webhook to `{PUBLIC_URL}/api/sms/inbound`. Google OAuth client →
+   `GOOGLE_OAUTH_CLIENT_ID/SECRET` with redirect `{PUBLIC_URL}/api/integrations/google/callback`.
 5. Deploy the demo: Neon (DATABASE_URL), Render (`render.yaml`, DEMO_MODE=true), Vercel
    (`web/`, env `API_URL=https://<render-app>.onrender.com`), LiveKit Cloud agent
    (`lk agent create` with the `agent` Docker target). Set `ALLOWED_ORIGINS` to the Vercel URL.
@@ -53,6 +61,10 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-24 – Claude Code – Built Phase 1 & 2 on feat/phase-1-2: staff shifts + time off +
+  holidays UI, Twilio texts and reminders with signed replies, waitlist (agent tool, offers,
+  hold/expiry, dashboard), value-booked overview card, Google Calendar OAuth connect, setup
+  wizard. Migration 0002. 78 tests, eval 30/30, e2e incl. new Team/Waitlist specs.
 - 2026-11-24 – Claude Code – README costs: added the LiveKit Ship plan $50/month base fee and
   current LiveKit telephony rates (livekit.com/pricing, checked 2026-11-23).
 - 2026-11-23 – Claude Code – Code review + security review of the MVP (security: no high/medium

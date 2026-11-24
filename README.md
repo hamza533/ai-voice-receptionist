@@ -20,11 +20,20 @@ Demo business: **Luma Hair Studio** (fictional), receptionist persona **Ava**.
 - **Answers FAQs** (parking, prices, policies) from the business's knowledge base.
 - **Takes messages and hands off**: urgent alert + email to staff, or a SIP transfer to the
   salon's phone when `TRANSFER_ENABLED=true`.
+- **Knows who works when**: each person's own hours, time off, weekly breaks and holidays;
+  Ava only offers times when that person is working and free.
+- **Texts customers** (Twilio): confirmations, a reminder before the appointment with
+  "reply C to cancel", and waitlist offers.
+- **Waitlist**: when a day is full Ava offers the waitlist; a cancellation is offered to the
+  first matching person, held for 30 minutes, then passed on.
+- **Shows its value**: the overview reports the value of bookings Ava made and the calls she
+  answered while the business was closed.
 - **Records every call**: transcript, summary, outcome, tool calls and response latency in the
   dashboard, plus a confirmation email to the caller.
 - **Dashboard** (from the Stitch design): overview KPIs, calls, call detail, appointments,
-  messages/callbacks, knowledge base with "unanswered questions", settings, and a test-call
-  button. Roles: `admin` and `staff`.
+  waitlist, messages/callbacks, team & schedules, knowledge base with "unanswered questions",
+  settings with a "Connect Google Calendar" button, a setup wizard for new businesses, and a
+  test-call button. Roles: `admin` and `staff`.
 
 ## Results
 
@@ -104,8 +113,15 @@ No uv/Node locally? Every `make` target runs in the toolbox: `docker compose run
 ## Configuration
 
 All variables are listed with comments and links in [.env.example](.env.example): LiveKit,
-Gemini, Google Calendar service account, SMTP, agent service token, call limits, retention,
-demo mode, CORS. Secrets only ever come from the environment (Key Vault in production).
+Gemini, Google Calendar (service account or the "Connect" button's OAuth client), Twilio
+texts, SMTP, agent service token, call limits, retention, demo mode, CORS. Secrets only ever
+come from the environment (Key Vault in production).
+
+- **Texts:** set `TWILIO_*` and point the Twilio number's incoming-message webhook at
+  `{PUBLIC_URL}/api/sms/inbound`. Without it, texts are listed but not sent.
+- **Connect Google Calendar:** create an OAuth "Web" client, add
+  `{PUBLIC_URL}/api/integrations/google/callback` as a redirect URI, set
+  `GOOGLE_OAUTH_CLIENT_ID/SECRET`; owners then click Settings → Integrations → Connect.
 
 ## Evaluation
 

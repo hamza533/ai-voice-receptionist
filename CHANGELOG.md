@@ -2,6 +2,22 @@
 
 All notable changes. Versions follow semantic versioning; images are tagged by version.
 
+## [0.2.0] – 2026-11-24
+### Added
+- Team page: each person's weekly working hours (or the salon's hours), time off (days,
+  ranges, appointments) and weekly breaks; Ava only offers times when that person works.
+- Holidays & closures card in Settings.
+- Text messages through Twilio: booking confirmations, reminders (default 24 hours before)
+  with "reply C to cancel", and signed replies handled by `/api/sms/inbound`.
+- Waitlist: Ava offers it when a day is full (`join_waitlist` tool); a cancellation is
+  offered to the first matching person, held for 30 minutes, taken by replying YES or by
+  staff in the new Waitlist page, then passed to the next person.
+- Overview shows the value of bookings Ava made and the calls answered while closed.
+- "Connect Google Calendar" button (OAuth) with a calendar picker; the refresh token is
+  stored encrypted. Service-account setups keep working.
+- Setup wizard for new businesses (business, hours, team, services, calendar & texts, test
+  call) with a reminder banner until it is finished.
+
 ## [0.1.0] – 2026-11-22
 ### Added
 - FastAPI API: business config, receptionist tools, call records, dashboard API, Argon2 auth

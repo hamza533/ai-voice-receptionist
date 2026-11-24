@@ -47,11 +47,32 @@ Short entries: chose X over Y because Z. This is the "Stack" part of the case st
   0 double bookings) and LLM mode (Gemini caller + judge) for conversation quality.
 
 ## New dependencies (beyond the spec list)
+- `cryptography` – encrypting the Google refresh token at rest (already installed through
+  google-auth; declared because the app now imports it).
 - `sentry-sdk` – optional error tracking (CONVENTIONS §10), off unless `SENTRY_DSN` is set.
 - `email-validator` – Pydantic `EmailStr` for login.
 - `livekit-api` – minting room-limited tokens in the API (agent dispatch in the token).
 - `@livekit/components-react`, `livekit-client` – web calls in the dashboard (spec).
 - `@playwright/test` – end-to-end tests (CONVENTIONS).
+
+## Phase 1 & 2 features (2026-11-24)
+- **Per-person schedules = shifts clipped to opening hours.** A person with no shifts works the
+  opening hours, so existing setups need no change. Breaks and days off are `time_off` rows
+  (once or weekly) treated as busy time, so the slot engine and the booking re-check share
+  one rule and the "never invented, never double-booked" guarantees are unchanged.
+- **Twilio over its REST API with httpx, no SDK.** Sending is one POST; replies are verified
+  with Twilio's HMAC-SHA1 signature. An outbox with idempotency keys (like email) means a
+  retried job never texts twice; without credentials texts are recorded as "skipped".
+  Only "C" cancels (Twilio reserves CANCEL/STOP for opt-out), and only when exactly one
+  booking is upcoming, so a text can't cancel the wrong one.
+- **Reminders are jobs scheduled for start − N hours** and re-check the booking when they
+  run, so a moved or cancelled booking never gets a stale reminder.
+- **Waitlist offers go through the normal booking step** (row lock, re-check, unique index),
+  with a time-limited hold and an expiry job that passes the time to the next person.
+- **Google OAuth (authorization code, offline) next to the service account.** Owners click
+  "Connect" instead of sharing calendars; the refresh token is encrypted with a key derived
+  from `SESSION_SECRET` (`cryptography` Fernet, already a dependency of google-auth, now
+  declared directly). The connection is cached for 30 s per process.
 
 ## Found in live voice testing (2026-11-23)
 - **Voice model `gemini-3.1-flash-live-preview` over `gemini-2.5-flash-native-audio`**: measured

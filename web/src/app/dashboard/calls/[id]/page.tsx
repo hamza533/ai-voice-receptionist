@@ -198,7 +198,7 @@ export default function CallDetailPage() {
               </dl>
               <div className="mt-4 flex items-center gap-2 rounded-xl bg-mint px-3.5 py-2.5 text-sm text-primary">
                 <CalendarCheck2 className="size-4" />
-                {a.calendar_synced ? "Event created in Google Calendar" : "Saved (calendar sync not configured)"}
+                {a.calendar_synced ? "Event created in Google Calendar" : "Saved to your bookings"}
               </div>
               {a.email ? (
                 <div className="mt-3 rounded-xl border p-3.5 text-sm">

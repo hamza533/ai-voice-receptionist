@@ -12,7 +12,15 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
-from app.api import agent, dashboard, public, settings_api
+from app.api import (
+    agent,
+    dashboard,
+    integrations_api,
+    public,
+    settings_api,
+    sms_api,
+    waitlist_api,
+)
 from app.config import get_settings
 from app.logging_setup import configure_logging, request_id_var
 
@@ -102,6 +110,9 @@ def create_app() -> FastAPI:
     app.include_router(dashboard.router)
     app.include_router(settings_api.router)
     app.include_router(agent.router)
+    app.include_router(waitlist_api.router)
+    app.include_router(sms_api.router)
+    app.include_router(integrations_api.router)
     return app
 
 

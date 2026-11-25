@@ -5,6 +5,7 @@ from __future__ import annotations
 import uuid
 from collections import Counter
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
@@ -37,6 +38,7 @@ from app.security import (
     verify_password,
 )
 from app.services import booking as booking_svc
+from app.services.availability import load_holidays, load_hours
 from app.services.calendar import get_calendar
 from app.services.privacy import mask_phone
 from app.services.timeutil import utcnow
@@ -101,7 +103,14 @@ def _caller(call: Call) -> str:
     return mask_phone(call.caller_number) if call.caller_number else "Unknown number"
 
 
-def appointment_out(a: Appointment) -> AppointmentOut:
+def _google_calendar() -> bool:
+    return get_calendar(get_settings()).name == "google"
+
+
+def appointment_out(a: Appointment, google: bool | None = None) -> AppointmentOut:
+    """`google`: whether bookings sync to Google Calendar; pass it when serialising many."""
+    if google is None:
+        google = _google_calendar()
     return AppointmentOut(
         id=a.id,
         ref=str(a.id)[:8],
@@ -118,7 +127,7 @@ def appointment_out(a: Appointment) -> AppointmentOut:
         status=a.status,
         source="ai" if a.call_id else "manual",
         call_id=a.call_id,
-        calendar_synced=bool(a.calendar_event_id) and get_settings().calendar_enabled,
+        calendar_synced=bool(a.calendar_event_id) and google,
     )
 
 
@@ -185,6 +194,7 @@ def get_call(
     if c is None:
         raise HTTPException(404, "Call not found")
     appts = db.scalars(select(Appointment).where(Appointment.call_id == c.id))
+    google = _google_calendar()
     return CallDetail(
         id=c.id,
         channel=c.channel,
@@ -202,7 +212,7 @@ def get_call(
         est_cost_usd=c.est_cost_usd or 0.0,
         turns=[TurnOut.model_validate(t) for t in c.turns],
         tool_calls=[ToolCallOut.model_validate(t) for t in c.tool_calls],
-        appointments=[appointment_out(a) for a in appts],
+        appointments=[appointment_out(a, google) for a in appts],
     )
 
 
@@ -227,7 +237,8 @@ def list_appointments(
         stmt = stmt.where(Appointment.staff_id == staff_id)
     if not include_cancelled:
         stmt = stmt.where(Appointment.status != "cancelled")
-    return [appointment_out(a) for a in db.scalars(stmt.order_by(Appointment.start_utc))]
+    google = _google_calendar()
+    return [appointment_out(a, google) for a in db.scalars(stmt.order_by(Appointment.start_utc))]
 
 
 @router.post("/appointments/{appointment_id}/cancel", response_model=AppointmentOut)
@@ -378,6 +389,32 @@ def overview(
         or 0
     )
     total = len(calls)
+
+    # What Ava earned the business: bookings she made (not cancelled since), valued at the
+    # service price, and the calls she answered while the salon was closed.
+    hours, holidays = load_hours(db), load_holidays(db)
+
+    def after_hours(c: Call) -> bool:
+        local = c.started_at.astimezone(zone)
+        if local.date() in holidays:
+            return True
+        t = local.time()
+        return not any(o <= t < cl for o, cl in hours.get(local.weekday(), []))
+
+    after_ids = {c.id for c in calls if after_hours(c)}
+    ai_appts = list(
+        db.scalars(
+            select(Appointment).where(
+                Appointment.created_at >= since,
+                Appointment.call_id.is_not(None),
+                Appointment.status != "cancelled",
+            )
+        )
+    )
+    booked_value = sum((a.service.price for a in ai_appts), Decimal(0))
+    after_value = sum((a.service.price for a in ai_appts if a.call_id in after_ids), Decimal(0))
+    biz = db.get(BusinessConfig, 1)
+    google = _google_calendar()
     return {
         "range": {"from": first_day.isoformat(), "to": today.isoformat(), "days": days},
         "calls": total,
@@ -389,7 +426,7 @@ def overview(
         "handoffs": outcomes.get("handed_to_human", 0),
         "outcomes": dict(outcomes),
         "per_day": [{"date": k, "calls": v} for k, v in per_day.items()],
-        "upcoming_today": [appointment_out(a).model_dump(mode="json") for a in upcoming],
+        "upcoming_today": [appointment_out(a, google).model_dump(mode="json") for a in upcoming],
         "recent_calls": [
             CallListItem(
                 id=c.id,
@@ -406,4 +443,9 @@ def overview(
         "messages_open": unhandled,
         "messages_urgent": urgent,
         "time_saved_min": round(sum(durations) / 60) if durations else 0,
+        "currency": biz.currency if biz else "USD",
+        "booked_value": float(booked_value),
+        "booked_value_count": len(ai_appts),
+        "after_hours_calls": len(after_ids),
+        "after_hours_value": float(after_value),
     }

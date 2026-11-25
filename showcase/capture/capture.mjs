@@ -85,6 +85,24 @@ await page.goto(`${BASE}/dashboard/settings`);
 await page.getByText("Agent settings & preferences").waitFor();
 await shot("10-settings");
 
+// Team & schedules (first person selected), waitlist, setup wizard, notifications
+await page.goto(`${BASE}/dashboard/team`);
+await page.getByText("Working hours").waitFor();
+await page.getByText("Time off & breaks").waitFor();
+await page.waitForTimeout(1200);
+await shot("12-team");
+await shot("12-team-full", { fullPage: true });
+await page.goto(`${BASE}/dashboard/waitlist`);
+await page.getByTestId("waitlist").getByText("Time held").first().waitFor();
+await shot("13-waitlist");
+await page.goto(`${BASE}/dashboard/setup`);
+await page.getByText("Your business").waitFor();
+await shot("14-setup");
+await page.goto(`${BASE}/dashboard/settings`);
+await page.getByText("Customer notifications & waitlist").scrollIntoViewIfNeeded();
+await page.evaluate(() => window.scrollBy(0, -120));
+await shot("15-settings-notifications");
+
 // Mobile overview (the Stitch screens were mobile-first)
 const mobile = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 3, storageState: await ctx.storageState() });
 const m = await mobile.newPage();

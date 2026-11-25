@@ -12,6 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -112,14 +113,48 @@ class LocalCalendar:
 class GoogleCalendar:
     name = "google"
 
-    def __init__(self, service_account_json: str, timeout_s: float = 10.0) -> None:
-        from google.oauth2 import service_account
+    def __init__(self, credentials: Any, timeout_s: float = 10.0) -> None:
         from googleapiclient.discovery import build
 
-        info = json.loads(service_account_json)
-        creds = service_account.Credentials.from_service_account_info(info, scopes=SCOPES)
-        self._svc = build("calendar", "v3", credentials=creds, cache_discovery=False)
+        self._svc = build("calendar", "v3", credentials=credentials, cache_discovery=False)
         self._timeout = timeout_s
+
+    @classmethod
+    def from_service_account(cls, service_account_json: str) -> GoogleCalendar:
+        from google.oauth2 import service_account
+
+        info = json.loads(service_account_json)
+        return cls(service_account.Credentials.from_service_account_info(info, scopes=SCOPES))
+
+    @classmethod
+    def from_oauth(cls, refresh_token: str, client_id: str, client_secret: str) -> GoogleCalendar:
+        from google.oauth2.credentials import Credentials
+
+        from app.services.google_oauth import CALENDAR_SCOPE, TOKEN_URL
+
+        creds = Credentials(
+            None,
+            refresh_token=refresh_token,
+            token_uri=TOKEN_URL,
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=[CALENDAR_SCOPE],
+        )
+        return cls(creds)
+
+    def list_calendars(self) -> list[dict[str, Any]]:
+        """Calendars the connected account can add events to (for the picker)."""
+        resp = retry_call(
+            self._svc.calendarList().list(minAccessRole="writer").execute, what="calendar.list"
+        )
+        return [
+            {
+                "id": c["id"],
+                "name": c.get("summaryOverride") or c.get("summary") or c["id"],
+                "primary": bool(c.get("primary")),
+            }
+            for c in resp.get("items", [])
+        ]
 
     def list_busy(self, calendar_id: str, start: datetime, end: datetime) -> list[BusyEvent]:
         out: list[BusyEvent] = []
@@ -213,16 +248,87 @@ class GoogleCalendar:
 _local_singleton = LocalCalendar()
 
 
+@dataclass(frozen=True)
+class OAuthConnection:
+    refresh_token: str
+    calendar_id: str
+    account_email: str
+
+
+_CONNECTION_TTL_S = 30.0
+_connection_cache: dict[str, tuple[float, OAuthConnection | None]] = {}
+
+
+def oauth_connection(settings: Settings) -> OAuthConnection | None:
+    """The owner's "Connect Google Calendar" connection, cached briefly per process."""
+    if not settings.google_oauth_enabled:
+        return None
+    hit = _connection_cache.get("google")
+    if hit and time.monotonic() - hit[0] < _CONNECTION_TTL_S:
+        return hit[1]
+    from sqlalchemy import select
+
+    from app.db import SessionLocal
+    from app.models import Integration
+    from app.services.crypto import decrypt
+
+    conn: OAuthConnection | None = None
+    try:
+        with SessionLocal() as db:
+            row = db.scalar(select(Integration).where(Integration.provider == "google_calendar"))
+            token = decrypt(settings, row.refresh_token_enc) if row else None
+            if row and token:
+                conn = OAuthConnection(token, row.calendar_id, row.account_email)
+    except Exception:
+        log.exception("could not load the Google Calendar connection")
+    _connection_cache["google"] = (time.monotonic(), conn)
+    return conn
+
+
+def invalidate_connection_cache() -> None:
+    _connection_cache.clear()
+
+
 @lru_cache
 def _google(service_account_json: str) -> GoogleCalendar:
-    return GoogleCalendar(service_account_json)
+    return GoogleCalendar.from_service_account(service_account_json)
+
+
+@lru_cache(maxsize=4)
+def _google_oauth(refresh_token: str, client_id: str, client_secret: str) -> GoogleCalendar:
+    return GoogleCalendar.from_oauth(refresh_token, client_id, client_secret)
+
+
+def connected_calendar(settings: Settings) -> GoogleCalendar | None:
+    """The connected Google account's calendar client (even before a calendar is picked)."""
+    conn = oauth_connection(settings)
+    if conn is None:
+        return None
+    return _google_oauth(
+        conn.refresh_token, settings.google_oauth_client_id, settings.google_oauth_client_secret
+    )
 
 
 def get_calendar(settings: Settings | None = None) -> CalendarClient:
+    """Connected Google account (once a calendar is picked) > service account > built-in."""
     settings = settings or get_settings()
+    conn = oauth_connection(settings)
+    if conn is not None and conn.calendar_id:
+        client = connected_calendar(settings)
+        if client is not None:
+            return client
     if settings.calendar_enabled:
         return _google(settings.google_service_account_json)
     return _local_singleton
+
+
+def default_calendar_id(settings: Settings) -> str:
+    """The business calendar: the one picked after "Connect Google Calendar", else the
+    service-account calendar from GOOGLE_CALENDAR_ID."""
+    conn = oauth_connection(settings)
+    if conn is not None and conn.calendar_id:
+        return conn.calendar_id
+    return settings.google_calendar_id
 
 
 def calendar_for_staff(staff: Staff, default_calendar_id: str) -> str:

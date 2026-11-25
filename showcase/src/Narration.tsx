@@ -3,14 +3,14 @@ import React from "react";
 import { interpolate, Sequence, staticFile, useCurrentFrame } from "remotion";
 
 import { fontFamily } from "./theme";
-import { clip, rate, vf, type VoId } from "./vo";
+import { audioFile, clip, vf, type VoId } from "./vo";
 
 /** Voiceover clip plus a burned-in caption shown while it plays. */
 export function Narration({ id, from }: { id: VoId; from: number }) {
   const frames = vf(id);
   return (
     <Sequence from={from} durationInFrames={frames + 8} layout="none">
-      <Audio src={staticFile(clip(id).file)} playbackRate={rate(id)} />
+      <Audio src={staticFile(audioFile(id))} />
       <Caption text={clip(id).text} frames={frames} />
     </Sequence>
   );

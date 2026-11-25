@@ -7,7 +7,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, model_validator
 
 
 class ORM(BaseModel):
@@ -182,10 +182,15 @@ class BusinessIn(BaseModel):
     staff_notify_email: str = Field(default="", max_length=255)
     email_signature: str = Field(default="", max_length=1000)
     extra_instructions: str = Field(default="", max_length=2000)
+    sms_confirmations: bool = True
+    sms_reminders: bool = True
+    reminder_hours: int = Field(default=24, ge=1, le=72)
+    waitlist_enabled: bool = True
+    waitlist_hold_minutes: int = Field(default=30, ge=5, le=240)
 
 
 class BusinessOut(BusinessIn, ORM):
-    pass
+    setup_completed: bool = False
 
 
 class ServiceIn(BaseModel):
@@ -217,8 +222,62 @@ class StaffIn(BaseModel):
     active: bool = True
 
 
+class ShiftIn(BaseModel):
+    weekday: int = Field(ge=0, le=6)
+    start_time: time
+    end_time: time
+
+    @model_validator(mode="after")
+    def _order(self) -> ShiftIn:
+        if self.end_time <= self.start_time:
+            raise ValueError("A shift must end after it starts")
+        return self
+
+
+class ShiftOut(ShiftIn, ORM):
+    pass
+
+
 class StaffOut(StaffIn, ORM):
     id: int
+    shifts: list[ShiftOut] = Field(default_factory=list)
+
+
+class TimeOffIn(BaseModel):
+    """`once`: a period in business-local time (all day = 00:00 to 00:00 the next day).
+    `weekly`: a recurring break on one weekday."""
+
+    staff_id: int
+    kind: Literal["once", "weekly"]
+    start_local: datetime | None = None
+    end_local: datetime | None = None
+    weekday: int | None = Field(default=None, ge=0, le=6)
+    start_time: time | None = None
+    end_time: time | None = None
+    label: str = Field(default="", max_length=120)
+
+    @model_validator(mode="after")
+    def _complete(self) -> TimeOffIn:
+        if self.kind == "once":
+            if not self.start_local or not self.end_local or self.end_local <= self.start_local:
+                raise ValueError("Time off needs a start and an end after it")
+        elif self.weekday is None or not self.start_time or not self.end_time:
+            raise ValueError("A weekly break needs a weekday, start and end time")
+        elif self.end_time <= self.start_time:
+            raise ValueError("A break must end after it starts")
+        return self
+
+
+class TimeOffOut(ORM):
+    id: int
+    staff_id: int
+    kind: str
+    start_utc: datetime | None
+    end_utc: datetime | None
+    weekday: int | None
+    start_time: time | None
+    end_time: time | None
+    label: str
 
 
 class HoursIn(BaseModel):
@@ -257,3 +316,34 @@ class WebCallTokenOut(BaseModel):
     room: str
     identity: str
     expires_in: int
+
+
+# ---------------------------------------------------------------- waitlist
+
+
+class WaitlistIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    phone: str = Field(min_length=5, max_length=40)
+    service_id: int
+    staff_id: int | None = None
+    day: date
+    time_of_day: Literal["any", "morning", "afternoon", "evening"] = "any"
+    notes: str = Field(default="", max_length=500)
+
+
+class WaitlistOut(BaseModel):
+    id: int
+    name: str
+    phone: str
+    service: str
+    service_id: int
+    staff: str | None
+    day: date
+    time_of_day: str
+    notes: str
+    status: str
+    offer_start_utc: datetime | None
+    offer_staff: str | None
+    offer_expires_at: datetime | None
+    created_at: datetime
+    source: Literal["ai", "manual"]

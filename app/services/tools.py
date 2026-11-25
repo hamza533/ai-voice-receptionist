@@ -16,7 +16,7 @@ import hashlib
 import re
 import time as _time
 import uuid
-from datetime import UTC, datetime, time, timedelta
+from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
@@ -27,11 +27,19 @@ from app.config import Settings
 from app.jobs.queue import enqueue
 from app.models import FAQ, BusinessConfig, Call, Message, OpeningHours, Service, Staff, ToolCall
 from app.services import booking as booking_svc
+from app.services import waitlist as waitlist_svc
 from app.services.availability import find_slots
 from app.services.calendar import CalendarClient
 from app.services.money import format_money
 from app.services.privacy import normalize_email, normalize_phone, redact
-from app.services.timeutil import WEEKDAYS, ResolvedDate, resolve_date, speak_time, utcnow
+from app.services.timeutil import (
+    TIME_WINDOWS,
+    WEEKDAYS,
+    ResolvedDate,
+    resolve_date,
+    speak_time,
+    utcnow,
+)
 
 ToolStatus = Literal[
     "ok", "error", "not_found", "unavailable", "needs_confirmation", "invalid", "transferred"
@@ -112,6 +120,15 @@ class HumanIn(_Base):
     reason: str = Field(default="Caller asked to speak to a person", max_length=1000)
 
 
+class JoinWaitlistIn(_Base):
+    service: str = Field(min_length=2, max_length=120)
+    date: str = Field(description="the day they want (ISO or phrase like 'saturday')")
+    name: str = Field(min_length=1, max_length=120)
+    phone: str = Field(default="", max_length=40, description="mobile for the text offer")
+    staff: str | None = None
+    time_of_day: Literal["any", "morning", "afternoon", "evening"] = "any"
+
+
 TOOL_INPUTS: dict[str, type[_Base]] = {
     "get_business_info": BusinessInfoIn,
     "answer_faq": FaqIn,
@@ -121,6 +138,7 @@ TOOL_INPUTS: dict[str, type[_Base]] = {
     "cancel_appointment": CancelIn,
     "take_message": MessageIn,
     "request_human": HumanIn,
+    "join_waitlist": JoinWaitlistIn,
 }
 
 
@@ -240,14 +258,6 @@ def _service_for_offer(
 
 def _resolve(ctx: ToolContext, phrase: str) -> ResolvedDate:
     return resolve_date(phrase, ctx.tz, ctx.now)
-
-
-_TIME_WINDOWS = {
-    "morning": (None, time(12, 0)),
-    "afternoon": (time(12, 0), time(17, 0)),
-    "evening": (time(17, 0), None),
-    "any": (None, None),
-}
 
 
 # ---------------------------------------------------------------- tools
@@ -390,7 +400,7 @@ def check_availability(ctx: ToolContext, args: AvailabilityIn) -> ToolResult:
     date_to = end.date if end else start.date + timedelta(days=2)
     if date_to < start.date:
         date_to = start.date
-    after, before = _TIME_WINDOWS[args.time_of_day]
+    after, before = TIME_WINDOWS[args.time_of_day]
     slots = find_slots(
         ctx.db,
         ctx.calendar,
@@ -422,13 +432,14 @@ def check_availability(ctx: ToolContext, args: AvailabilityIn) -> ToolResult:
         if not slots:
             return ToolResult(
                 status="unavailable",
-                message="Nothing free in that period or the two weeks after. Offer to take a "
-                "message so the team can call back.",
+                message="Nothing free in that period or the two weeks after. "
+                + _waitlist_hint(ctx)
+                + "Otherwise offer to take a message so the team can call back.",
                 data={"resolved_date": start.as_dict()},
             )
         message = (
             "Nothing free on the requested dates. These are the next openings; offer them. "
-            "Only these times may be offered."
+            "Only these times may be offered. " + _waitlist_hint(ctx)
         )
     else:
         message = "Offer two or three of these times. Only these times may be offered."
@@ -717,6 +728,66 @@ def request_human(ctx: ToolContext, args: HumanIn) -> ToolResult:
     )
 
 
+def _waitlist_hint(ctx: ToolContext) -> str:
+    if not ctx.biz.waitlist_enabled:
+        return ""
+    return (
+        "If they really want the requested day, offer to put them on the waitlist "
+        "(join_waitlist): they get the first matching cancellation. "
+    )
+
+
+def join_waitlist(ctx: ToolContext, args: JoinWaitlistIn) -> ToolResult:
+    if not ctx.biz.waitlist_enabled:
+        return ToolResult(
+            status="invalid",
+            message="The waitlist is switched off. Offer other times or take a message.",
+        )
+    service = _find_service(ctx, args.service)
+    if service is None:
+        return ToolResult(status="invalid", message="Unknown service. Ask which one they want.")
+    staff = None
+    if args.staff and args.staff.lower() not in {"anyone", "any", "no preference"}:
+        staff = _find_staff(ctx, args.staff)
+        if staff is None or staff not in service.staff:
+            return ToolResult(status="invalid", message=f"That person doesn't do {service.name}.")
+    try:
+        day = _resolve(ctx, args.date)
+    except ValueError as exc:
+        return ToolResult(status="invalid", message=str(exc))
+    phone = normalize_phone(args.phone) or (
+        normalize_phone(ctx.call.caller_number) if ctx.call else ""
+    )
+    if not phone:
+        return ToolResult(
+            status="invalid", message="Ask for a mobile number so we can text them an opening."
+        )
+    _entry, created = waitlist_svc.add_entry(
+        ctx.db,
+        name=args.name,
+        phone=phone,
+        service=service,
+        day=day.date,
+        staff=staff,
+        time_of_day=args.time_of_day,
+        call_id=ctx.call.id if ctx.call else None,
+    )
+    how = (
+        "they'll get a text and can reply YES to take it"
+        if ctx.settings.sms_enabled
+        else "the team will call them"
+    )
+    return ToolResult(
+        status="ok",
+        message=(
+            f"On the waitlist for {service.name} on {day.spoken}. Tell the caller that if a "
+            f"matching time opens up, {how}; it's held for "
+            f"{ctx.biz.waitlist_hold_minutes} minutes."
+        ),
+        data={"service": service.name, "day": day.date.isoformat(), "already_waiting": not created},
+    )
+
+
 TOOLS = {
     "get_business_info": get_business_info,
     "answer_faq": answer_faq,
@@ -726,6 +797,7 @@ TOOLS = {
     "cancel_appointment": cancel_appointment,
     "take_message": take_message,
     "request_human": request_human,
+    "join_waitlist": join_waitlist,
 }
 
 
@@ -768,6 +840,7 @@ def _record(
             "answer_faq": str(d.get("question", "")),
             "take_message": "Message saved for staff",
             "request_human": "Staff alerted (urgent)",
+            "join_waitlist": f"Waitlist: {d.get('service')} on {d.get('day')}",
         }.get(tool, "")
     result_data: dict[str, Any] = {}
     if tool == "check_availability" and result.status == "ok":
@@ -803,4 +876,6 @@ TOOL_DESCRIPTIONS = {
     "cancel_appointment": "Cancel the caller's booking (found by their phone or email and date).",
     "take_message": "Save a message for the team; they get an email.",
     "request_human": "Hand off to a person when the caller asks or you can't help.",
+    "join_waitlist": "Put the caller on the waitlist for a full day; they get the first "
+    "matching cancellation by text.",
 }

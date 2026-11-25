@@ -19,7 +19,7 @@ import { Donut, WeeklyBars } from "@/components/charts";
 import { useDashboard } from "@/components/dashboard/context";
 import { OutcomeBadge, Pill } from "@/components/outcome-badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fmtDuration, fmtTime, relDay } from "@/lib/format";
+import { fmtDuration, fmtMoney, fmtTime, relDay } from "@/lib/format";
 import type { Overview } from "@/lib/types";
 import { useApi } from "@/lib/use-api";
 import { cn } from "@/lib/utils";
@@ -75,6 +75,7 @@ export default function OverviewPage() {
           icon={<PhoneCall className="size-4" />}
           value={loading ? null : String(total)}
           label="Calls answered"
+          sub={data ? `${data.after_hours_calls} while you were closed` : undefined}
           badge={
             data?.calls_change_pct != null ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-primary-fixed/70 px-2 py-0.5 text-[11px] font-semibold text-[#00201b]">
@@ -87,8 +88,14 @@ export default function OverviewPage() {
         <Tile
           highlight
           icon={<CalendarCheck2 className="size-4" />}
-          value={loading ? null : String(data?.appointments_booked ?? 0)}
-          label="Appointments booked by AI"
+          value={loading || !data ? null : fmtMoney(data.booked_value, data.currency)}
+          label="Value booked by Ava"
+          sub={
+            data
+              ? `${data.booked_value_count} appointment${data.booked_value_count === 1 ? "" : "s"}` +
+                (data.after_hours_value ? ` · ${fmtMoney(data.after_hours_value, data.currency)} after hours` : "")
+              : undefined
+          }
           badge={<span className="rounded-full bg-primary-fixed px-2 py-0.5 text-[11px] font-semibold text-[#00201b]">Auto-synced</span>}
         />
         <Tile
@@ -285,12 +292,14 @@ function Tile({
   icon,
   value,
   label,
+  sub,
   badge,
   highlight,
 }: {
   icon: React.ReactNode;
   value: string | null;
   label: string;
+  sub?: string;
   badge?: React.ReactNode;
   highlight?: boolean;
 }) {
@@ -318,6 +327,11 @@ function Tile({
         <p className="text-2xl font-bold leading-8 tracking-tight tabular-nums sm:text-[32px] sm:leading-10">{value}</p>
       )}
       <p className={cn("text-sm", highlight ? "text-white/80" : "text-muted-foreground")}>{label}</p>
+      {sub ? (
+        <p className={cn("mt-0.5 text-xs", highlight ? "text-white/70" : "text-muted-foreground")} data-testid="tile-sub">
+          {sub}
+        </p>
+      ) : null}
       {highlight ? (
         <CalendarCheck2 className="pointer-events-none absolute -right-3 top-12 size-16 text-white/10" aria-hidden />
       ) : null}

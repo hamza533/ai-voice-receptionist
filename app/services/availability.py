@@ -1,7 +1,9 @@
 """Slot computation.
 
-Slots = opening hours − holidays − calendar busy times − existing bookings (incl. buffers),
-sized to the service duration, from the next bookable moment up to BOOKING_WINDOW_DAYS.
+Slots = each person's working hours (their own shifts within the salon's opening hours, or
+the opening hours when they have no shifts) − holidays − their time off − calendar busy
+times − existing bookings (incl. buffers), sized to the service duration, from the next
+bookable moment up to BOOKING_WINDOW_DAYS.
 
 The core (`compute_slots`) is a pure function so it is easy to unit test; `find_slots`
 gathers the inputs from the database and the calendar.
@@ -27,8 +29,9 @@ from app.models import (
     OpeningHours,
     Service,
     Staff,
+    TimeOff,
 )
-from app.services.calendar import CalendarClient, staff_busy_intervals
+from app.services.calendar import CalendarClient, default_calendar_id, staff_busy_intervals
 from app.services.timeutil import speak_time
 
 Interval = tuple[datetime, datetime]
@@ -65,10 +68,73 @@ class SlotQuery:
     step_minutes: int = 15
     min_lead_minutes: int = 60
     window_days: int = 30
+    # staff_id -> weekday -> [(start, end)]; a person missing here works the opening hours.
+    staff_hours: dict[int, dict[int, list[tuple[time, time]]]] = field(default_factory=dict)
+
+
+TimeRange = tuple[time, time]
 
 
 def _overlaps(a_start: datetime, a_end: datetime, intervals: Iterable[Interval]) -> bool:
     return any(a_start < b_end and b_start < a_end for b_start, b_end in intervals)
+
+
+def _intersect(a: Iterable[TimeRange], b: Iterable[TimeRange]) -> list[TimeRange]:
+    b = list(b)
+    out = [(max(s1, s2), min(e1, e2)) for s1, e1 in a for s2, e2 in b]
+    return sorted((s, e) for s, e in out if s < e)
+
+
+def working_hours(
+    business: dict[int, list[TimeRange]],
+    own: dict[int, list[TimeRange]] | None,
+    weekday: int,
+) -> list[TimeRange]:
+    """When a person can be booked on a weekday: their shifts clipped to the salon's opening
+    hours (nobody is booked while the salon is closed), or the opening hours themselves."""
+    salon = sorted(business.get(weekday, []))
+    if own is None:
+        return salon
+    return _intersect(own.get(weekday, []), salon)
+
+
+def _windows(
+    day: date,
+    ranges: Iterable[TimeRange],
+    zone: ZoneInfo,
+    after: time | None,
+    before: time | None,
+) -> list[tuple[datetime, datetime, datetime]]:
+    """(grid base, first start, end) per working range, after the caller's time filter."""
+    out = []
+    for open_t, close_t in ranges:
+        lo = open_t if after is None else max(open_t, after)
+        hi = close_t if before is None else min(close_t, before)
+        if lo < hi:
+            out.append(
+                (
+                    datetime.combine(day, open_t, tzinfo=zone),
+                    datetime.combine(day, lo, tzinfo=zone),
+                    datetime.combine(day, hi, tzinfo=zone),
+                )
+            )
+    return out
+
+
+def _grid(
+    windows: Iterable[tuple[datetime, datetime, datetime]], step: timedelta, duration: timedelta
+) -> set[datetime]:
+    """Start times on the step grid (aligned to each range's own start) that fit the service."""
+    starts: set[datetime] = set()
+    for base, lo, hi in windows:
+        start = lo
+        offset = (start - base) % step
+        if offset:
+            start += step - offset
+        while start + duration <= hi:
+            starts.add(start)
+            start += step
+    return starts
 
 
 def compute_slots(
@@ -100,35 +166,36 @@ def compute_slots(
     gap = timedelta(minutes=min_gap_minutes)
     out: list[Slot] = []
     while day <= last_day and len(out) < limit:
+        if day in q.holidays:
+            day += timedelta(days=1)
+            continue
+        windows = {
+            sid: _windows(
+                day,
+                working_hours(q.hours, q.staff_hours.get(sid), day.weekday()),
+                zone,
+                after_local_time,
+                before_local_time,
+            )
+            for sid, _ in q.staff
+        }
         day_count = 0
         last_offer: datetime | None = None
-        if day not in q.holidays:
-            for open_t, close_t in sorted(q.hours.get(day.weekday(), [])):
-                lo = open_t if after_local_time is None else max(open_t, after_local_time)
-                hi = close_t if before_local_time is None else min(close_t, before_local_time)
-                start = datetime.combine(day, lo, tzinfo=zone)
-                close = datetime.combine(day, hi, tzinfo=zone)
-                # Align to the step grid relative to the opening time.
-                base = datetime.combine(day, open_t, tzinfo=zone)
-                if start > base:
-                    offset = (start - base) % step
-                    if offset:
-                        start += step - offset
-                while start + duration <= close:
-                    s_utc = start.astimezone(UTC)
-                    spaced = last_offer is None or s_utc - last_offer >= gap
-                    if s_utc >= earliest and spaced and day_count < per_day_limit:
-                        for staff_id, staff_name in q.staff:
-                            if not _overlaps(s_utc, s_utc + occupied, q.busy.get(staff_id, [])):
-                                out.append(Slot(staff_id, staff_name, s_utc, s_utc + duration))
-                                day_count += 1
-                                last_offer = s_utc
-                                break  # one offer per time; first free staff member
-                    if len(out) >= limit:
-                        break
-                    start += step
-                if len(out) >= limit:
-                    break
+        for start in sorted(_grid((w for ws in windows.values() for w in ws), step, duration)):
+            s_utc = start.astimezone(UTC)
+            spaced = last_offer is None or s_utc - last_offer >= gap
+            if s_utc < earliest or not spaced or day_count >= per_day_limit:
+                continue
+            for staff_id, staff_name in q.staff:
+                end = start + duration
+                works = any(lo <= start and end <= hi for _, lo, hi in windows[staff_id])
+                if works and not _overlaps(s_utc, s_utc + occupied, q.busy.get(staff_id, [])):
+                    out.append(Slot(staff_id, staff_name, s_utc, s_utc + duration))
+                    day_count += 1
+                    last_offer = s_utc
+                    break  # one offer per time; first free staff member
+            if len(out) >= limit:
+                break
         day += timedelta(days=1)
     return out
 
@@ -145,6 +212,44 @@ def load_hours(db: Session) -> dict[int, list[tuple[time, time]]]:
 
 def load_holidays(db: Session) -> set[date]:
     return {h.date for h in db.scalars(select(Holiday))}
+
+
+def load_staff_hours(staff: Iterable[Staff]) -> dict[int, dict[int, list[TimeRange]]]:
+    """Weekly shifts for the people who have them (the rest work the opening hours)."""
+    out: dict[int, dict[int, list[TimeRange]]] = {}
+    for s in staff:
+        if s.shifts:
+            days: dict[int, list[TimeRange]] = defaultdict(list)
+            for sh in s.shifts:
+                days[sh.weekday].append((sh.start_time, sh.end_time))
+            out[s.id] = dict(days)
+    return out
+
+
+def time_off_intervals(
+    db: Session, staff_ids: Sequence[int], start: datetime, end: datetime, tz: str
+) -> dict[int, list[Interval]]:
+    """Time off in [start, end) as UTC intervals per person; weekly breaks are expanded
+    on every matching local day (so they follow the business time zone across DST)."""
+    zone = ZoneInfo(tz)
+    out: dict[int, list[Interval]] = defaultdict(list)
+    rows = db.scalars(select(TimeOff).where(TimeOff.staff_id.in_(staff_ids)))
+    first = start.astimezone(zone).date() - timedelta(days=1)
+    last = end.astimezone(zone).date() + timedelta(days=1)
+    for t in rows:
+        if t.kind == "once" and t.start_utc and t.end_utc:
+            if t.start_utc < end and t.end_utc > start:
+                out[t.staff_id].append((t.start_utc, t.end_utc))
+        elif t.kind == "weekly" and t.start_time and t.end_time and t.weekday is not None:
+            day = first
+            while day <= last:
+                if day.weekday() == t.weekday:
+                    lo = datetime.combine(day, t.start_time, tzinfo=zone).astimezone(UTC)
+                    hi = datetime.combine(day, t.end_time, tzinfo=zone).astimezone(UTC)
+                    if lo < end and hi > start:
+                        out[t.staff_id].append((lo, hi))
+                day += timedelta(days=1)
+    return dict(out)
 
 
 def booked_intervals(
@@ -222,12 +327,16 @@ def find_slots(
     cal_busy = staff_busy_intervals(
         calendar,
         staff,
-        default_calendar_id=settings.google_calendar_id,
+        default_calendar_id=default_calendar_id(settings),
         start=range_start,
         end=range_end,
         our_events=lambda ids: _our_event_ids(db, ids),
     )
     for sid, intervals in cal_busy.items():
+        busy.setdefault(sid, []).extend(intervals)
+    for sid, intervals in time_off_intervals(
+        db, [s.id for s in staff], range_start, range_end, tz
+    ).items():
         busy.setdefault(sid, []).extend(intervals)
 
     q = SlotQuery(
@@ -241,6 +350,7 @@ def find_slots(
         step_minutes=settings.slot_step_minutes,
         min_lead_minutes=settings.min_lead_minutes,
         window_days=settings.booking_window_days,
+        staff_hours=load_staff_hours(staff),
     )
     return compute_slots(
         q,
@@ -279,14 +389,24 @@ def slot_is_free(
     if local.date() in load_holidays(db):
         return False, "closed_holiday"
     end_local = local + timedelta(minutes=service.duration_min)
-    in_hours = any(
-        datetime.combine(local.date(), o, tzinfo=zone) <= local
-        and end_local <= datetime.combine(local.date(), c, tzinfo=zone)
-        for o, c in load_hours(db).get(local.weekday(), [])
-    )
-    if not in_hours:
+
+    def fits(ranges: Iterable[TimeRange]) -> bool:
+        return any(
+            datetime.combine(local.date(), o, tzinfo=zone) <= local
+            and end_local <= datetime.combine(local.date(), c, tzinfo=zone)
+            for o, c in ranges
+        )
+
+    salon = load_hours(db)
+    if not fits(salon.get(local.weekday(), [])):
         return False, "outside_opening_hours"
+    own = load_staff_hours([staff]).get(staff.id)
+    if not fits(working_hours(salon, own, local.weekday())):
+        return False, "staff_not_working"
     occupied_end = start_utc + timedelta(minutes=service.duration_min + service.buffer_min)
+    off = time_off_intervals(db, [staff.id], start_utc, occupied_end, tz).get(staff.id, [])
+    if _overlaps(start_utc, occupied_end, off):
+        return False, "staff_time_off"
     busy = booked_intervals(
         db, [staff.id], start_utc, occupied_end, exclude_appointment_id=exclude_appointment_id
     ).get(staff.id, [])
@@ -295,7 +415,7 @@ def slot_is_free(
     cal = staff_busy_intervals(
         calendar,
         [staff],
-        default_calendar_id=settings.google_calendar_id,
+        default_calendar_id=default_calendar_id(settings),
         start=start_utc - timedelta(hours=1),
         end=occupied_end + timedelta(hours=1),
         our_events=lambda ids: _our_event_ids(db, ids),

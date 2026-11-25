@@ -4,6 +4,7 @@ export type Outcome =
   | "cancelled"
   | "faq_answered"
   | "message_taken"
+  | "waitlisted"
   | "handed_to_human"
   | "abandoned";
 
@@ -105,6 +106,11 @@ export interface Overview {
   messages_open: number;
   messages_urgent: number;
   time_saved_min: number;
+  currency: string;
+  booked_value: number;
+  booked_value_count: number;
+  after_hours_calls: number;
+  after_hours_value: number;
 }
 
 export interface Business {
@@ -122,6 +128,12 @@ export interface Business {
   staff_notify_email: string;
   email_signature: string;
   extra_instructions: string;
+  sms_confirmations: boolean;
+  sms_reminders: boolean;
+  reminder_hours: number;
+  waitlist_enabled: boolean;
+  waitlist_hold_minutes: number;
+  setup_completed?: boolean;
 }
 
 export interface Service {
@@ -135,6 +147,12 @@ export interface Service {
   staff_ids: number[];
 }
 
+export interface Shift {
+  weekday: number;
+  start_time: string;
+  end_time: string;
+}
+
 export interface Staff {
   id: number;
   name: string;
@@ -142,6 +160,60 @@ export interface Staff {
   calendar_id: string;
   color: string;
   active: boolean;
+  shifts: Shift[];
+}
+
+export interface TimeOff {
+  id: number;
+  staff_id: number;
+  kind: "once" | "weekly";
+  start_utc: string | null;
+  end_utc: string | null;
+  weekday: number | null;
+  start_time: string | null;
+  end_time: string | null;
+  label: string;
+}
+
+export interface Holiday {
+  id: number;
+  date: string;
+  label: string;
+}
+
+export interface WaitlistEntry {
+  id: number;
+  name: string;
+  phone: string;
+  service: string;
+  service_id: number;
+  staff: string | null;
+  day: string;
+  time_of_day: "any" | "morning" | "afternoon" | "evening";
+  notes: string;
+  status: "waiting" | "offered" | "booked" | "expired" | "removed";
+  offer_start_utc: string | null;
+  offer_staff: string | null;
+  offer_expires_at: string | null;
+  created_at: string;
+  source: "ai" | "manual";
+}
+
+export interface Integrations {
+  google: {
+    available: boolean;
+    connected: boolean;
+    account_email: string;
+    calendar_id: string;
+    mode: "connected" | "service_account" | "built_in";
+  };
+  sms: { configured: boolean; from_number: string };
+}
+
+export interface GoogleCalendarItem {
+  id: string;
+  name: string;
+  primary: boolean;
 }
 
 export interface Hours {

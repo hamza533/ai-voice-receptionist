@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from zoneinfo import available_timezones
+import itertools
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo, available_timezones
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import delete, select
@@ -11,7 +13,17 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_db
-from app.models import FAQ, BusinessConfig, Holiday, OpeningHours, Service, Staff, User
+from app.models import (
+    FAQ,
+    BusinessConfig,
+    Holiday,
+    OpeningHours,
+    Service,
+    Staff,
+    StaffShift,
+    TimeOff,
+    User,
+)
 from app.schemas import (
     BusinessIn,
     BusinessOut,
@@ -23,10 +35,20 @@ from app.schemas import (
     HoursOut,
     ServiceIn,
     ServiceOut,
+    ShiftIn,
     StaffIn,
     StaffOut,
+    TimeOffIn,
+    TimeOffOut,
 )
 from app.security import current_user, require_admin
+from app.services.timeutil import to_utc, utcnow
+
+
+def _local_to_utc(dt: datetime, zone: ZoneInfo) -> datetime:
+    """A wall-clock time in the business time zone (or an explicit offset) to UTC."""
+    return to_utc(dt if dt.tzinfo else dt.replace(tzinfo=zone))
+
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -158,6 +180,98 @@ def update_staff(
         setattr(s, k, v)
     _commit(db)
     return s
+
+
+@router.put("/staff/{staff_id}/shifts", response_model=StaffOut)
+def put_shifts(
+    staff_id: int,
+    body: list[ShiftIn],
+    db: Session = Depends(get_db),
+    _: User = Depends(require_admin),
+) -> Staff:
+    """Replace a person's weekly shifts. An empty list = they work the opening hours."""
+    s = db.get(Staff, staff_id)
+    if s is None:
+        raise HTTPException(404, "Staff not found")
+    by_day: dict[int, list[ShiftIn]] = {}
+    for sh in body:
+        by_day.setdefault(sh.weekday, []).append(sh)
+    for shifts in by_day.values():
+        shifts.sort(key=lambda x: x.start_time)
+        for a, b in itertools.pairwise(shifts):
+            if b.start_time < a.end_time:
+                raise HTTPException(422, "Shifts on the same day can't overlap")
+    # Delete first: the unit of work would insert before deleting orphans, and a shift kept
+    # at the same weekday + start would then collide with its old row.
+    s.shifts.clear()
+    db.flush()
+    s.shifts.extend(StaffShift(**sh.model_dump()) for sh in body)
+    _commit(db)
+    db.refresh(s)
+    return s
+
+
+# ---------------------------------------------------------------- time off
+
+
+@router.get("/time-off", response_model=list[TimeOffOut])
+def list_time_off(
+    staff_id: int | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(current_user),
+) -> list[TimeOff]:
+    """Upcoming one-off time off and all weekly breaks."""
+    stmt = select(TimeOff).where(
+        (TimeOff.kind == "weekly") | (TimeOff.end_utc > utcnow() - timedelta(days=1))
+    )
+    if staff_id is not None:
+        stmt = stmt.where(TimeOff.staff_id == staff_id)
+    return list(
+        db.scalars(stmt.order_by(TimeOff.kind, TimeOff.weekday, TimeOff.start_utc, TimeOff.id))
+    )
+
+
+@router.post("/time-off", response_model=TimeOffOut, status_code=201)
+def add_time_off(
+    body: TimeOffIn, db: Session = Depends(get_db), _: User = Depends(require_admin)
+) -> TimeOff:
+    if db.get(Staff, body.staff_id) is None:
+        raise HTTPException(404, "Staff not found")
+    biz = db.get(BusinessConfig, 1)
+    zone = ZoneInfo(biz.timezone if biz else "UTC")
+    row = TimeOff(staff_id=body.staff_id, kind=body.kind, label=body.label.strip())
+    if body.kind == "once":
+        assert body.start_local and body.end_local  # checked by the schema
+        row.start_utc = _local_to_utc(body.start_local, zone)
+        row.end_utc = _local_to_utc(body.end_local, zone)
+    else:
+        row.weekday, row.start_time, row.end_time = body.weekday, body.start_time, body.end_time
+    db.add(row)
+    _commit(db)
+    return row
+
+
+@router.delete("/time-off/{time_off_id}", status_code=204)
+def delete_time_off(
+    time_off_id: int, db: Session = Depends(get_db), _: User = Depends(require_admin)
+) -> None:
+    db.execute(delete(TimeOff).where(TimeOff.id == time_off_id))
+    db.commit()
+
+
+# ---------------------------------------------------------------- setup
+
+
+@router.post("/setup/complete", response_model=BusinessOut)
+def complete_setup(
+    db: Session = Depends(get_db), _: User = Depends(require_admin)
+) -> BusinessConfig:
+    biz = db.get(BusinessConfig, 1)
+    if biz is None:
+        raise HTTPException(409, "Add your business details first")
+    biz.setup_completed = True
+    db.commit()
+    return biz
 
 
 # ---------------------------------------------------------------- hours & holidays

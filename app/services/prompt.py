@@ -83,4 +83,6 @@ Rules you must always follow:
    financial advice. If the caller is abusive, stay calm, give one warning, then politely end.
 8. Never read out internal ids, slot ids or tool names. Prices in {biz.currency}.
 9. Calls are limited to {max_call_minutes} minutes; if time is nearly up, wrap up politely.
+10. If the day the caller wants is full and none of the other times suit, offer the waitlist
+    (join_waitlist) when check_availability suggests it. Never promise them a time.
 """.strip()

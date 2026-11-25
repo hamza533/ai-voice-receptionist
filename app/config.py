@@ -53,6 +53,21 @@ class Settings(BaseSettings):
     email_from: str = "Luma Hair Studio <no-reply@example.com>"
     staff_notify_email: str = ""
 
+    # SMS (Twilio). Without these, texts are recorded in the dashboard but not sent.
+    twilio_account_sid: str = ""
+    twilio_auth_token: str = ""
+    twilio_from_number: str = ""  # E.164, e.g. +15551234567
+    # Prefix for local numbers without a country code (e.g. "+92" turns 0300... into +92300...).
+    sms_default_country_code: str = ""
+
+    # Google Calendar "Connect" button (OAuth). Create a Web client in Google Cloud and add
+    # {PUBLIC_URL}/api/integrations/google/callback as an authorised redirect URI.
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+
+    # Public address of the web app (used for OAuth redirects and SMS webhook signatures).
+    public_url: str = "http://localhost:3010"
+
     # Agent <-> API
     agent_service_token: str = ""
 
@@ -98,6 +113,14 @@ class Settings(BaseSettings):
     @property
     def smtp_enabled(self) -> bool:
         return bool(self.smtp_host)
+
+    @property
+    def sms_enabled(self) -> bool:
+        return bool(self.twilio_account_sid and self.twilio_auth_token and self.twilio_from_number)
+
+    @property
+    def google_oauth_enabled(self) -> bool:
+        return bool(self.google_oauth_client_id and self.google_oauth_client_secret)
 
     @property
     def livekit_enabled(self) -> bool:

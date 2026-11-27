@@ -29,7 +29,7 @@ def tts(client: genai.Client, text: str, voice: str) -> bytes:
         try:
             resp = client.models.generate_content(
                 model=os.environ.get("TTS_MODEL", "gemini-2.5-flash-preview-tts"),
-                contents=f"Say in a friendly, natural phone voice: {text}",
+                contents=text,  # text only: TTS models read style instructions aloud
                 config=types.GenerateContentConfig(
                     response_modalities=["AUDIO"],
                     speech_config=types.SpeechConfig(

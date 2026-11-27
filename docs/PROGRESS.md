@@ -29,22 +29,13 @@ owner's third-party keys is built, tested and green.
 - Nothing.
 
 **Next (needs the owner's accounts/keys)**
-1. Create a LiveKit Cloud project (Build plan) → set `LIVEKIT_*`; `make agent-dev`; make a web
-   call from the dashboard. Claim the free US number and point its inbound rule at agent
-   `luma-receptionist`.
-2. Gemini API key → `GEMINI_API_KEY`; run `make eval MODE=llm` and 10 scripted voice calls;
-   copy the numbers into README "Results" and the case study.
-3. Google Calendar: service account + share the demo calendar → `GOOGLE_*`.
-4. Gmail app password → `SMTP_*`, `STAFF_NOTIFY_EMAIL` (demo inbox).
-4b. Twilio account + SMS number → `TWILIO_*`, `SMS_DEFAULT_COUNTRY_CODE`; set the number's
-   incoming-message webhook to `{PUBLIC_URL}/api/sms/inbound`. Google OAuth client →
-   `GOOGLE_OAUTH_CLIENT_ID/SECRET` with redirect `{PUBLIC_URL}/api/integrations/google/callback`.
-5. Deploy the demo: Neon (DATABASE_URL), Render (`render.yaml`, DEMO_MODE=true), Vercel
-   (`web/`, env `API_URL=https://<render-app>.onrender.com`), LiveKit Cloud agent
-   (`lk agent create` with the `agent` Docker target). Set `ALLOWED_ORIGINS` to the Vercel URL.
-6. Showcase video (86 s, problem-first story, warm narrator, no stack/API names) and README GIF are in
-   `docs/images/` (built from the running app by `showcase/`). Optional: re-record the call
-   dialogue with a female caller voice (`showcase/scripts/voiceover.py`, TTS daily quota).
+1. Go live with the step-by-step checklist in `docs/DEPLOY.md`: Neon → Render (`render.yaml`)
+   → seed + admin → Vercel (`web/`) → LiveKit Cloud agent → free US phone number.
+2. Optional add-ons from the same checklist: Twilio texts, "Connect Google Calendar" (OAuth
+   client), Gmail app password for emails.
+3. After going live: a real phone call and a real text round trip (book, receive, reply C).
+4. Optional: `make eval MODE=llm` and 10 scripted voice calls (`scripts/voice_test`) for the
+   README "Results".
 
 ## Blockers / open questions
 - LLM-mode eval numbers and voice latency need `GEMINI_API_KEY` and LiveKit keys (not in repo).
@@ -61,6 +52,10 @@ cd web && E2E_BASE_URL=http://localhost:3010 npx playwright test   # 2 passed
 Expected: `/ready` → `{"status":"ready"...}`; dashboard shows seeded Luma Hair Studio calls.
 
 ## Session log
+- 2026-11-28 – Claude Code – Go-live checklist (docs/DEPLOY.md). Full end-to-end voice booking
+  on the local stack: scripted caller (`web_call.mjs`, `CALLER_TURNS`) waits for Ava's turn;
+  Ava offered real slots, confirmed, booked (Sara, Tue 12:00), queued the text + reminder, and
+  the call summary reads "booked".
 - 2026-11-25 – Claude Code – New showcase video (86 s): problem-first story, warm narrator
   (Sulafat), female caller, text-message and waitlist scenes, faster pace and 112 BPM music;
   fresh screenshots incl. team, waitlist and setup; portfolio zip (video + screenshots).

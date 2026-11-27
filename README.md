@@ -185,14 +185,14 @@ Per-call model cost is measured per call (tokens → estimated USD) and shown in
 
 The public demo runs with `DEMO_MODE=true` (3-minute calls, 20 calls/day cap, nightly calendar
 reset, no deletes): dashboard on Vercel, API on Render (`render.yaml`), Postgres on Neon, agent
-on LiveKit Cloud. Deploying it needs the project owner's accounts and keys; see
-[docs/PROGRESS.md](docs/PROGRESS.md) for the exact steps.
+on LiveKit Cloud. Deploying it needs the project owner's accounts and keys; follow
+[docs/DEPLOY.md](docs/DEPLOY.md), a step-by-step go-live checklist (about 45 minutes).
 
 ## Limitations & next steps
 
 - Single business per deployment (multi-tenant is out of scope).
 - Google Calendar only; Outlook / Microsoft 365 is the natural next integration.
-- SMS confirmations are a paid add-on (email is used today).
+- Texts need a Twilio account (paid per message); without one, texts are listed but not sent.
 - Call recordings are off by design; can be enabled with consent and retention rules (Blob
   container is provisioned).
 - Large knowledge bases would plug in a retrieval tool instead of FAQ matching.
